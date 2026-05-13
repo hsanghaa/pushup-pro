@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "PushUp Pro"
+version = "1.0.0"
+id = "artifacts/pushup-pro"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22486
+
+[services.development]
+run = "pnpm --filter @workspace/pushup-pro run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/pushup-pro", "run", "build" ]
+publicDir = "artifacts/pushup-pro/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22486"
+BASE_PATH = "/"

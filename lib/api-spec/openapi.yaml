@@ -3,13 +3,28 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: PushUp Pro API specification
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: users
+    description: User profile operations
+  - name: workouts
+    description: Workout tracking operations
+  - name: goals
+    description: Goal management operations
+  - name: badges
+    description: Badge operations
+  - name: challenges
+    description: Challenge and leaderboard operations
+  - name: variations
+    description: Push-up variation library
+  - name: coach
+    description: AI coach messaging
+
 paths:
   /healthz:
     get:
@@ -24,6 +39,369 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /users:
+    post:
+      operationId: createUser
+      tags: [users]
+      summary: Create user profile (onboarding)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{userId}:
+    get:
+      operationId: getUser
+      tags: [users]
+      summary: Get user profile
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateUser
+      tags: [users]
+      summary: Update user profile
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserUpdate"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{userId}/stats:
+    get:
+      operationId: getUserStats
+      tags: [users]
+      summary: Get user dashboard stats
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserStats"
+
+  /workouts:
+    post:
+      operationId: createWorkout
+      tags: [workouts]
+      summary: Save a completed workout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkoutInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workout"
+
+  /workouts/user/{userId}:
+    get:
+      operationId: getUserWorkouts
+      tags: [workouts]
+      summary: Get workouts for a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Workout"
+
+  /workouts/{workoutId}:
+    get:
+      operationId: getWorkout
+      tags: [workouts]
+      summary: Get a single workout
+      parameters:
+        - name: workoutId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workout"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateWorkout
+      tags: [workouts]
+      summary: Update workout (manual rep edit)
+      parameters:
+        - name: workoutId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkoutUpdate"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Workout"
+
+  /goals/user/{userId}:
+    get:
+      operationId: getUserGoals
+      tags: [goals]
+      summary: Get goals for a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Goal"
+    post:
+      operationId: createGoal
+      tags: [goals]
+      summary: Create a new goal
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoalInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Goal"
+
+  /goals/{goalId}:
+    patch:
+      operationId: updateGoal
+      tags: [goals]
+      summary: Update a goal
+      parameters:
+        - name: goalId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GoalUpdate"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Goal"
+
+  /goals/user/{userId}/recommendations:
+    get:
+      operationId: getGoalRecommendations
+      tags: [goals]
+      summary: Get AI-generated goal recommendations
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GoalRecommendations"
+
+  /badges/user/{userId}:
+    get:
+      operationId: getUserBadges
+      tags: [badges]
+      summary: Get all badges for a user (earned and locked)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BadgeStatus"
+
+  /challenges/current:
+    get:
+      operationId: getCurrentChallenge
+      tags: [challenges]
+      summary: Get the current weekly challenge
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Challenge"
+
+  /challenges/current/leaderboard:
+    get:
+      operationId: getChallengeLeaderboard
+      tags: [challenges]
+      summary: Get leaderboard for the current challenge
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaderboardEntry"
+
+  /challenges/current/join:
+    post:
+      operationId: joinChallenge
+      tags: [challenges]
+      summary: Join the current weekly challenge
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinChallengeInput"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Challenge"
+
+  /variations:
+    get:
+      operationId: getVariations
+      tags: [variations]
+      summary: Get all push-up variations
+      parameters:
+        - name: level
+          in: query
+          schema:
+            type: string
+            enum: [beginner, intermediate, advanced, athlete]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Variation"
+
+  /coach/message/{userId}:
+    get:
+      operationId: getCoachMessage
+      tags: [coach]
+      summary: Get a personalized AI coach message
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CoachMessage"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +412,314 @@ components:
       required:
         - status
 
+    User:
+      type: object
+      required: [id, name, fitnessLevel, currentMaxPushups, mainGoal, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        fitnessLevel:
+          type: string
+          enum: [beginner, intermediate, advanced, athlete]
+        currentMaxPushups:
+          type: integer
+        mainGoal:
+          type: string
+          enum: [build_strength, improve_consistency, hit_100_daily, compete_friends, train_like_athlete]
+        reminderPreference:
+          type: ["string", "null"]
+        wantsAiGoals:
+          type: boolean
+        wantsCompetition:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    UserInput:
+      type: object
+      required: [name, fitnessLevel, currentMaxPushups, mainGoal]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        fitnessLevel:
+          type: string
+          enum: [beginner, intermediate, advanced, athlete]
+        currentMaxPushups:
+          type: integer
+          minimum: 0
+        mainGoal:
+          type: string
+          enum: [build_strength, improve_consistency, hit_100_daily, compete_friends, train_like_athlete]
+        reminderPreference:
+          type: string
+        wantsAiGoals:
+          type: boolean
+        wantsCompetition:
+          type: boolean
+
+    UserUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        fitnessLevel:
+          type: string
+          enum: [beginner, intermediate, advanced, athlete]
+        currentMaxPushups:
+          type: integer
+        mainGoal:
+          type: string
+          enum: [build_strength, improve_consistency, hit_100_daily, compete_friends, train_like_athlete]
+        reminderPreference:
+          type: string
+
+    UserStats:
+      type: object
+      required: [userId, totalPushups, todayReps, weeklyTotal, averageRepsPerSet, currentStreak, bestSet, progressScore, weeklyReps, streakBonus, personalBestBonus, challengeBonus]
+      properties:
+        userId:
+          type: integer
+        totalPushups:
+          type: integer
+        todayReps:
+          type: integer
+        weeklyTotal:
+          type: integer
+        averageRepsPerSet:
+          type: number
+        currentStreak:
+          type: integer
+        bestSet:
+          type: integer
+        progressScore:
+          type: integer
+        weeklyReps:
+          type: integer
+        streakBonus:
+          type: integer
+        personalBestBonus:
+          type: integer
+        challengeBonus:
+          type: integer
+
+    Workout:
+      type: object
+      required: [id, userId, date, totalReps, sets, averageReps, variation, usedCamera, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        date:
+          type: string
+          format: date
+        totalReps:
+          type: integer
+        sets:
+          type: integer
+        averageReps:
+          type: number
+        variation:
+          type: string
+        usedCamera:
+          type: boolean
+        notes:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+
+    WorkoutInput:
+      type: object
+      required: [userId, totalReps, sets, variation, usedCamera]
+      properties:
+        userId:
+          type: integer
+        totalReps:
+          type: integer
+          minimum: 0
+        sets:
+          type: integer
+          minimum: 1
+        variation:
+          type: string
+        usedCamera:
+          type: boolean
+        notes:
+          type: string
+        date:
+          type: string
+          format: date
+
+    WorkoutUpdate:
+      type: object
+      properties:
+        totalReps:
+          type: integer
+        sets:
+          type: integer
+        variation:
+          type: string
+        notes:
+          type: string
+
+    Goal:
+      type: object
+      required: [id, userId, type, targetReps, aiGenerated, completed, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        type:
+          type: string
+          enum: [daily, weekly, streak, challenge, personal_best]
+        targetReps:
+          type: integer
+        deadline:
+          type: ["string", "null"]
+          format: date
+        aiGenerated:
+          type: boolean
+        completed:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    GoalInput:
+      type: object
+      required: [type, targetReps]
+      properties:
+        type:
+          type: string
+          enum: [daily, weekly, streak, challenge, personal_best]
+        targetReps:
+          type: integer
+          minimum: 1
+        deadline:
+          type: string
+          format: date
+        aiGenerated:
+          type: boolean
+
+    GoalUpdate:
+      type: object
+      properties:
+        targetReps:
+          type: integer
+        deadline:
+          type: string
+          format: date
+        completed:
+          type: boolean
+
+    GoalRecommendations:
+      type: object
+      required: [dailyGoal, weeklyGoal, message]
+      properties:
+        dailyGoal:
+          type: integer
+        weeklyGoal:
+          type: integer
+        streakGoal:
+          type: integer
+        message:
+          type: string
+
+    BadgeStatus:
+      type: object
+      required: [id, name, description, requirement, earned]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        requirement:
+          type: string
+        earned:
+          type: boolean
+        earnedDate:
+          type: ["string", "null"]
+          format: date-time
+
+    Challenge:
+      type: object
+      required: [id, name, target, startDate, endDate, participantCount]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        target:
+          type: integer
+        startDate:
+          type: string
+          format: date
+        endDate:
+          type: string
+          format: date
+        participantCount:
+          type: integer
+        description:
+          type: ["string", "null"]
+
+    JoinChallengeInput:
+      type: object
+      required: [userId]
+      properties:
+        userId:
+          type: integer
+
+    LeaderboardEntry:
+      type: object
+      required: [rank, userId, name, weeklyReps, progressScore]
+      properties:
+        rank:
+          type: integer
+        userId:
+          type: integer
+        name:
+          type: string
+        weeklyReps:
+          type: integer
+        progressScore:
+          type: integer
+        fitnessLevel:
+          type: string
+
+    Variation:
+      type: object
+      required: [id, name, level, description, musclesWorked, suggestedReps, safetyNote]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        level:
+          type: string
+          enum: [beginner, intermediate, advanced, athlete]
+        description:
+          type: string
+        musclesWorked:
+          type: string
+        suggestedReps:
+          type: string
+        safetyNote:
+          type: string
+
+    CoachMessage:
+      type: object
+      required: [message, type]
+      properties:
+        message:
+          type: string
+        type:
+          type: string
+          enum: [encouragement, goal_recommendation, milestone, reminder, challenge]
