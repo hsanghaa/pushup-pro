@@ -259,6 +259,57 @@ export interface Variation {
   safetyNote: string;
 }
 
+export type RivalPersonality =
+  (typeof RivalPersonality)[keyof typeof RivalPersonality];
+
+export const RivalPersonality = {
+  machine: "machine",
+  grinder: "grinder",
+  competitor: "competitor",
+  comeback_kid: "comeback_kid",
+  underdog: "underdog",
+  consistent: "consistent",
+  weekend_warrior: "weekend_warrior",
+} as const;
+
+export type RivalFitnessLevel =
+  (typeof RivalFitnessLevel)[keyof typeof RivalFitnessLevel];
+
+export const RivalFitnessLevel = {
+  beginner: "beginner",
+  intermediate: "intermediate",
+  advanced: "advanced",
+  athlete: "athlete",
+} as const;
+
+export interface Rival {
+  id: number;
+  userId: number;
+  name: string;
+  avatarEmoji: string;
+  personality: RivalPersonality;
+  fitnessLevel: RivalFitnessLevel;
+  weeklyReps: number;
+  currentStreak: number;
+  createdAt: string;
+}
+
+export type GenerateRivalInputStyle =
+  (typeof GenerateRivalInputStyle)[keyof typeof GenerateRivalInputStyle];
+
+export const GenerateRivalInputStyle = {
+  machine: "machine",
+  grinder: "grinder",
+  competitor: "competitor",
+  comeback_kid: "comeback_kid",
+  underdog: "underdog",
+  random: "random",
+} as const;
+
+export interface GenerateRivalInput {
+  style?: GenerateRivalInputStyle;
+}
+
 export type CoachMessageType =
   (typeof CoachMessageType)[keyof typeof CoachMessageType];
 

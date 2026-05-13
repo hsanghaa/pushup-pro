@@ -276,6 +276,16 @@ export default function Workout() {
           const amplitude = peakLumRef.current - troughLumRef.current;
           const durationMs = Date.now() - repStartTimeRef.current;
 
+          // Filter noise: require meaningful range of motion to count a rep.
+          // Use 30% of calibrated amplitude (or absolute min of 6) so random
+          // movement / body shifting never increments the counter.
+          const minRequired = calibAmplitudeRef.current !== null
+            ? Math.max(6, calibAmplitudeRef.current * 0.30)
+            : 6;
+          if (amplitude < minRequired) {
+            return; // too shallow — not a real push-up
+          }
+
           // Calibrate dynamic range from first few reps
           if (calibAmplitudeRef.current === null) {
             calibAmplitudeRef.current = Math.max(amplitude, 8);

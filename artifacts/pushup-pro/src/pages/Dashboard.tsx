@@ -1,13 +1,21 @@
 import { useRequireAuth } from "@/lib/auth";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useGetUserStats, getGetUserStatsQueryKey, useGetCoachMessage, getGetCoachMessageQueryKey } from "@workspace/api-client-react";
+import {
+  useGetUserStats,
+  useGetCoachMessage,
+  useGetUserRivals,
+  getGetUserStatsQueryKey,
+  getGetCoachMessageQueryKey,
+  getGetUserRivalsQueryKey,
+} from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
+import { useStreakNotification } from "@/hooks/useStreakNotification";
 
 export default function Dashboard() {
   const userId = useRequireAuth();
-  
+
   const { data: stats, isLoading: statsLoading } = useGetUserStats(userId!, {
     query: { enabled: !!userId, queryKey: getGetUserStatsQueryKey(userId!) }
   });
@@ -15,6 +23,14 @@ export default function Dashboard() {
   const { data: message, isLoading: msgLoading } = useGetCoachMessage(userId!, {
     query: { enabled: !!userId, queryKey: getGetCoachMessageQueryKey(userId!) }
   });
+
+  const { data: rivals } = useGetUserRivals(userId!, {
+    query: { enabled: !!userId, queryKey: getGetUserRivalsQueryKey(userId!) }
+  });
+
+  const topRival = rivals?.sort((a, b) => b.weeklyReps - a.weeklyReps)[0];
+
+  useStreakNotification(stats?.todayReps, stats?.currentStreak, topRival?.name);
 
   if (!userId) return null;
 
@@ -35,6 +51,19 @@ export default function Dashboard() {
             <p className="text-sm font-medium text-primary font-mono">{message.message}</p>
           </div>
         ) : null}
+
+        {/* Rival alert — show if a rival is beating you today */}
+        {topRival && (topRival.weeklyReps > (stats?.weeklyTotal ?? 0)) && (
+          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-center gap-3">
+            <span className="text-2xl">{topRival.avatarEmoji}</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-red-400 uppercase tracking-wider">Rival Alert</p>
+              <p className="text-sm font-mono text-foreground truncate">
+                {topRival.name} is ahead — {topRival.weeklyReps} vs your {stats?.weeklyTotal ?? 0} this week
+              </p>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-card border border-border p-4 rounded-xl flex flex-col justify-between">

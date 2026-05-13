@@ -32,6 +32,7 @@ export default function Goals() {
   const [showAdd, setShowAdd] = useState(false);
   const [newGoalType, setNewGoalType] = useState("daily");
   const [newGoalTarget, setNewGoalTarget] = useState("");
+  const [accepting, setAccepting] = useState(false);
 
   const { data: goals, isLoading: goalsLoading } = useGetUserGoals(userId!, {
     query: { enabled: !!userId, queryKey: getGetUserGoalsQueryKey(userId!) },
@@ -69,7 +70,7 @@ export default function Goals() {
     if (!userId || !newGoalTarget) return;
     createGoal.mutate({
       userId,
-      data: { type: newGoalType as any, targetReps: parseInt(newGoalTarget, 10) }
+      data: { type: newGoalType as "daily" | "weekly" | "streak" | "challenge" | "personal_best", targetReps: parseInt(newGoalTarget, 10) }
     }, {
       onSuccess: () => {
         queryClient.invalidateQueries({ queryKey: getGetUserGoalsQueryKey(userId) });
@@ -87,12 +88,24 @@ export default function Goals() {
     });
   };
 
-  const handleAcceptRecommendation = () => {
+  const handleAcceptRecommendation = async () => {
     if (!recommendations || !userId) return;
-    createGoal.mutate({ userId, data: { type: "weekly", targetReps: recommendations.weeklyGoal, aiGenerated: true } }, {
-      onSuccess: () => queryClient.invalidateQueries({ queryKey: getGetUserGoalsQueryKey(userId) })
-    });
-    createGoal.mutate({ userId, data: { type: "daily", targetReps: recommendations.dailyGoal, aiGenerated: true } }, {});
+    setAccepting(true);
+    try {
+      await createGoal.mutateAsync({
+        userId,
+        data: { type: "weekly", targetReps: recommendations.weeklyGoal, aiGenerated: true }
+      });
+      await createGoal.mutateAsync({
+        userId,
+        data: { type: "daily", targetReps: recommendations.dailyGoal, aiGenerated: true }
+      });
+      queryClient.invalidateQueries({ queryKey: getGetUserGoalsQueryKey(userId) });
+    } catch {
+      // silent — user can retry
+    } finally {
+      setAccepting(false);
+    }
   };
 
   if (!userId) return null;
@@ -122,10 +135,10 @@ export default function Goals() {
             <Button
               size="sm"
               onClick={handleAcceptRecommendation}
-              disabled={createGoal.isPending}
+              disabled={accepting}
               className="bg-primary text-primary-foreground text-xs font-mono uppercase tracking-wider"
             >
-              Accept Goals
+              {accepting ? "Saving..." : "Accept Goals"}
             </Button>
           </div>
         )}
@@ -186,7 +199,11 @@ export default function Goals() {
                       {goal.aiGenerated && <span className="text-[10px] font-mono text-primary bg-primary/10 px-1.5 py-0.5 rounded">AI</span>}
                     </div>
                     {!goal.completed && (
-                      <button onClick={() => handleComplete(goal.id)} className="text-[10px] font-mono text-muted-foreground hover:text-primary uppercase tracking-wider">
+                      <button
+                        onClick={() => handleComplete(goal.id)}
+                        disabled={updateGoal.isPending}
+                        className="text-[10px] font-mono text-muted-foreground hover:text-primary uppercase tracking-wider disabled:opacity-50"
+                      >
                         Mark Done
                       </button>
                     )}

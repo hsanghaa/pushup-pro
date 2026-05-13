@@ -364,6 +364,61 @@ export const GetVariationsResponseItem = zod.object({
 export const GetVariationsResponse = zod.array(GetVariationsResponseItem);
 
 /**
+ * @summary Get AI rivals for a user
+ */
+export const GetUserRivalsParams = zod.object({
+  userId: zod.coerce.number(),
+});
+
+export const GetUserRivalsResponseItem = zod.object({
+  id: zod.number(),
+  userId: zod.number(),
+  name: zod.string(),
+  avatarEmoji: zod.string(),
+  personality: zod.enum([
+    "machine",
+    "grinder",
+    "competitor",
+    "comeback_kid",
+    "underdog",
+    "consistent",
+    "weekend_warrior",
+  ]),
+  fitnessLevel: zod.enum(["beginner", "intermediate", "advanced", "athlete"]),
+  weeklyReps: zod.number(),
+  currentStreak: zod.number(),
+  createdAt: zod.coerce.date(),
+});
+export const GetUserRivalsResponse = zod.array(GetUserRivalsResponseItem);
+
+/**
+ * @summary Generate a new AI rival persona
+ */
+export const GenerateRivalParams = zod.object({
+  userId: zod.coerce.number(),
+});
+
+export const GenerateRivalBody = zod.object({
+  style: zod
+    .enum([
+      "machine",
+      "grinder",
+      "competitor",
+      "comeback_kid",
+      "underdog",
+      "random",
+    ])
+    .optional(),
+});
+
+/**
+ * @summary Remove an AI rival
+ */
+export const DeleteRivalParams = zod.object({
+  rivalId: zod.coerce.number(),
+});
+
+/**
  * @summary Get a personalized AI coach message
  */
 export const GetCoachMessageParams = zod.object({

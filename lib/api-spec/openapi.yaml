@@ -24,6 +24,8 @@ tags:
     description: Push-up variation library
   - name: coach
     description: AI coach messaging
+  - name: rivals
+    description: AI rival management
 
 paths:
   /healthz:
@@ -383,6 +385,71 @@ paths:
                 items:
                   $ref: "#/components/schemas/Variation"
 
+  /rivals/user/{userId}:
+    get:
+      operationId: getUserRivals
+      tags: [rivals]
+      summary: Get AI rivals for a user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Rival"
+
+  /rivals/user/{userId}/generate:
+    post:
+      operationId: generateRival
+      tags: [rivals]
+      summary: Generate a new AI rival persona
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateRivalInput"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Rival"
+        "400":
+          description: Bad request
+
+  /rivals/{rivalId}:
+    delete:
+      operationId: deleteRival
+      tags: [rivals]
+      summary: Remove an AI rival
+      parameters:
+        - name: rivalId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Not found
+
   /coach/message/{userId}:
     get:
       operationId: getCoachMessage
@@ -713,6 +780,39 @@ components:
           type: string
         safetyNote:
           type: string
+
+    Rival:
+      type: object
+      required: [id, userId, name, avatarEmoji, personality, fitnessLevel, weeklyReps, currentStreak, createdAt]
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        name:
+          type: string
+        avatarEmoji:
+          type: string
+        personality:
+          type: string
+          enum: [machine, grinder, competitor, comeback_kid, underdog, consistent, weekend_warrior]
+        fitnessLevel:
+          type: string
+          enum: [beginner, intermediate, advanced, athlete]
+        weeklyReps:
+          type: integer
+        currentStreak:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+
+    GenerateRivalInput:
+      type: object
+      properties:
+        style:
+          type: string
+          enum: [machine, grinder, competitor, comeback_kid, underdog, random]
 
     CoachMessage:
       type: object

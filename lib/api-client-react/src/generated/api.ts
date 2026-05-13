@@ -20,6 +20,7 @@ import type {
   BadgeStatus,
   Challenge,
   CoachMessage,
+  GenerateRivalInput,
   GetVariationsParams,
   Goal,
   GoalInput,
@@ -28,6 +29,7 @@ import type {
   HealthStatus,
   JoinChallengeInput,
   LeaderboardEntry,
+  Rival,
   User,
   UserInput,
   UserStats,
@@ -1577,6 +1579,264 @@ export function useGetVariations<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Get AI rivals for a user
+ */
+export const getGetUserRivalsUrl = (userId: number) => {
+  return `/api/rivals/user/${userId}`;
+};
+
+export const getUserRivals = async (
+  userId: number,
+  options?: RequestInit,
+): Promise<Rival[]> => {
+  return customFetch<Rival[]>(getGetUserRivalsUrl(userId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetUserRivalsQueryKey = (userId: number) => {
+  return [`/api/rivals/user/${userId}`] as const;
+};
+
+export const getGetUserRivalsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getUserRivals>>,
+  TError = ErrorType<unknown>,
+>(
+  userId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getUserRivals>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetUserRivalsQueryKey(userId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getUserRivals>>> = ({
+    signal,
+  }) => getUserRivals(userId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!userId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getUserRivals>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetUserRivalsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getUserRivals>>
+>;
+export type GetUserRivalsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get AI rivals for a user
+ */
+
+export function useGetUserRivals<
+  TData = Awaited<ReturnType<typeof getUserRivals>>,
+  TError = ErrorType<unknown>,
+>(
+  userId: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getUserRivals>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetUserRivalsQueryOptions(userId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Generate a new AI rival persona
+ */
+export const getGenerateRivalUrl = (userId: number) => {
+  return `/api/rivals/user/${userId}/generate`;
+};
+
+export const generateRival = async (
+  userId: number,
+  generateRivalInput: GenerateRivalInput,
+  options?: RequestInit,
+): Promise<Rival> => {
+  return customFetch<Rival>(getGenerateRivalUrl(userId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(generateRivalInput),
+  });
+};
+
+export const getGenerateRivalMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateRival>>,
+    TError,
+    { userId: number; data: BodyType<GenerateRivalInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof generateRival>>,
+  TError,
+  { userId: number; data: BodyType<GenerateRivalInput> },
+  TContext
+> => {
+  const mutationKey = ["generateRival"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof generateRival>>,
+    { userId: number; data: BodyType<GenerateRivalInput> }
+  > = (props) => {
+    const { userId, data } = props ?? {};
+
+    return generateRival(userId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GenerateRivalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generateRival>>
+>;
+export type GenerateRivalMutationBody = BodyType<GenerateRivalInput>;
+export type GenerateRivalMutationError = ErrorType<void>;
+
+/**
+ * @summary Generate a new AI rival persona
+ */
+export const useGenerateRival = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateRival>>,
+    TError,
+    { userId: number; data: BodyType<GenerateRivalInput> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof generateRival>>,
+  TError,
+  { userId: number; data: BodyType<GenerateRivalInput> },
+  TContext
+> => {
+  return useMutation(getGenerateRivalMutationOptions(options));
+};
+
+/**
+ * @summary Remove an AI rival
+ */
+export const getDeleteRivalUrl = (rivalId: number) => {
+  return `/api/rivals/${rivalId}`;
+};
+
+export const deleteRival = async (
+  rivalId: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteRivalUrl(rivalId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteRivalMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRival>>,
+    TError,
+    { rivalId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteRival>>,
+  TError,
+  { rivalId: number },
+  TContext
+> => {
+  const mutationKey = ["deleteRival"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteRival>>,
+    { rivalId: number }
+  > = (props) => {
+    const { rivalId } = props ?? {};
+
+    return deleteRival(rivalId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteRivalMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteRival>>
+>;
+
+export type DeleteRivalMutationError = ErrorType<void>;
+
+/**
+ * @summary Remove an AI rival
+ */
+export const useDeleteRival = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteRival>>,
+    TError,
+    { rivalId: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteRival>>,
+  TError,
+  { rivalId: number },
+  TContext
+> => {
+  return useMutation(getDeleteRivalMutationOptions(options));
+};
 
 /**
  * @summary Get a personalized AI coach message
