@@ -18,8 +18,49 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Trophy, Users, Zap, Crown, UserPlus, Trash2, Flame, ChevronDown, ChevronUp } from "lucide-react";
+import { Trophy, Users, Zap, Crown, UserPlus, Trash2, Flame, ChevronDown, ChevronUp, Gift, Copy, Check, MapPin, Star } from "lucide-react";
 import { speakRivalGenerated } from "@/lib/rivalVoice";
+
+interface PartnerStudio {
+  id: string;
+  name: string;
+  type: string;
+  emoji: string;
+  tagline: string;
+  normalPrice: number;
+  offers: { platinum: string; gold: string; silver: string };
+  accent: string;
+}
+
+const PARTNER_STUDIOS: PartnerStudio[] = [
+  { id: "soulcycle", name: "SoulCycle", type: "Spin", emoji: "🚲", tagline: "High-energy indoor cycling in a candlelit studio.", normalPrice: 40, offers: { platinum: "FREE class ($40 value)", gold: "75% off — pay $10", silver: "50% off — pay $20" }, accent: "border-yellow-500/40 bg-yellow-500/5" },
+  { id: "corepower", name: "CorePower Yoga", type: "Yoga", emoji: "🧘", tagline: "Hot yoga meets mindful strength training.", normalPrice: 30, offers: { platinum: "FREE drop-in ($30 value)", gold: "75% off — pay $8", silver: "50% off — pay $15" }, accent: "border-green-500/40 bg-green-500/5" },
+  { id: "clubpilates", name: "Club Pilates", type: "Pilates", emoji: "🤸", tagline: "Reformer Pilates for every fitness level.", normalPrice: 35, offers: { platinum: "FREE intro class ($35 value)", gold: "75% off — pay $9", silver: "50% off — pay $18" }, accent: "border-pink-500/40 bg-pink-500/5" },
+  { id: "orangetheory", name: "Orangetheory", type: "HIIT", emoji: "🔥", tagline: "Science-backed heart-rate interval training.", normalPrice: 28, offers: { platinum: "FREE first class ($28 value)", gold: "75% off — pay $7", silver: "50% off — pay $14" }, accent: "border-orange-500/40 bg-orange-500/5" },
+  { id: "barrys", name: "Barry's", type: "Bootcamp", emoji: "💪", tagline: "The original bootcamp class. Treadmill + weights.", normalPrice: 38, offers: { platinum: "FREE class ($38 value)", gold: "75% off — pay $10", silver: "50% off — pay $19" }, accent: "border-red-500/40 bg-red-500/5" },
+  { id: "barre3", name: "barre3", type: "Barre", emoji: "🩰", tagline: "Balance of strength, cardio, and mindfulness.", normalPrice: 25, offers: { platinum: "FREE drop-in ($25 value)", gold: "75% off — pay $6", silver: "50% off — pay $13" }, accent: "border-purple-500/40 bg-purple-500/5" },
+];
+
+const TIER_CONFIG = {
+  platinum: { label: "Platinum", minRank: 1, maxRank: 3, color: "text-cyan-300", bg: "bg-cyan-500/10 border-cyan-500/30", stars: 3 },
+  gold:     { label: "Gold",     minRank: 4, maxRank: 5, color: "text-yellow-400", bg: "bg-yellow-500/10 border-yellow-500/30", stars: 2 },
+  silver:   { label: "Silver",   minRank: 6, maxRank: 10, color: "text-gray-300", bg: "bg-gray-500/10 border-gray-500/30", stars: 1 },
+} as const;
+
+type Tier = keyof typeof TIER_CONFIG;
+
+function getTier(rank: number | null): Tier | null {
+  if (!rank) return null;
+  if (rank <= 3) return "platinum";
+  if (rank <= 5) return "gold";
+  if (rank <= 10) return "silver";
+  return null;
+}
+
+function makeCoupon(studioId: string, tier: Tier): string {
+  const code = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `PUSHPRO-${tier.toUpperCase()}-${studioId.toUpperCase().slice(0, 4)}-${code}`;
+}
 
 const RANK_COLORS = ["text-primary", "text-gray-300", "text-amber-600"];
 const FITNESS_LEVEL_LABELS: Record<string, string> = {
@@ -61,9 +102,11 @@ const STYLE_OPTIONS = [
 export default function Challenges() {
   const userId = useRequireAuth();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"challenge" | "rivals">("challenge");
+  const [activeTab, setActiveTab] = useState<"challenge" | "rivals" | "rewards">("challenge");
   const [showStylePicker, setShowStylePicker] = useState(false);
   const [selectedStyle, setSelectedStyle] = useState("random");
+  const [claimedCoupons, setClaimedCoupons] = useState<Record<string, string>>({});
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const { data: challenge, isLoading: challengeLoading } = useGetCurrentChallenge();
   const { data: leaderboard, isLoading: lbLoading } = useGetChallengeLeaderboard();
@@ -148,6 +191,15 @@ export default function Challenges() {
                   {rivals.length}
                 </span>
               )}
+            </button>
+            <button
+              onClick={() => setActiveTab("rewards")}
+              className={`flex-1 py-2 rounded-md text-xs font-bold uppercase tracking-wider transition-colors relative ${
+                activeTab === "rewards" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              Rewards
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-green-500 text-white text-[9px] font-bold flex items-center justify-center">✦</span>
             </button>
           </div>
         </div>
@@ -397,6 +449,167 @@ export default function Challenges() {
             )}
           </div>
         )}
+
+        {/* ── REWARDS TAB ── */}
+        {activeTab === "rewards" && (() => {
+          const myRank = leaderboard ? leaderboard.findIndex(e => e.userId === userId) + 1 : null;
+          const effectiveRank = myRank && myRank > 0 ? myRank : null;
+          const tier = getTier(effectiveRank);
+          const tierCfg = tier ? TIER_CONFIG[tier] : null;
+
+          const handleClaim = (studioId: string) => {
+            if (!tier || claimedCoupons[studioId]) return;
+            const code = makeCoupon(studioId, tier);
+            setClaimedCoupons(prev => ({ ...prev, [studioId]: code }));
+          };
+
+          const handleCopy = (studioId: string) => {
+            const code = claimedCoupons[studioId];
+            if (!code) return;
+            navigator.clipboard.writeText(code);
+            setCopiedId(studioId);
+            setTimeout(() => setCopiedId(null), 2000);
+          };
+
+          return (
+            <div className="px-4 space-y-5">
+              {/* How it works */}
+              <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <Gift className="w-4 h-4 text-primary" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-primary">Local Partner Rewards</span>
+                </div>
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                  Finish in the <strong className="text-foreground">top 10</strong> of the weekly leaderboard and unlock
+                  real discounts at fitness studios near you. The higher you rank, the bigger the reward.
+                </p>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  {(["platinum", "gold", "silver"] as Tier[]).map(t => {
+                    const cfg = TIER_CONFIG[t];
+                    return (
+                      <div key={t} className={`rounded-lg border p-2 ${cfg.bg}`}>
+                        <div className="flex justify-center gap-0.5 mb-1">
+                          {Array.from({ length: cfg.stars }).map((_, i) => (
+                            <Star key={i} className={`w-3 h-3 fill-current ${cfg.color}`} />
+                          ))}
+                        </div>
+                        <div className={`text-xs font-bold ${cfg.color}`}>{cfg.label}</div>
+                        <div className="text-[10px] text-muted-foreground">Top {cfg.maxRank}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Rank status */}
+              {lbLoading ? (
+                <Skeleton className="h-20 w-full rounded-xl" />
+              ) : !isParticipating ? (
+                <div className="bg-card border border-dashed border-border rounded-xl p-5 text-center space-y-2">
+                  <Trophy className="w-8 h-8 text-muted-foreground mx-auto" />
+                  <p className="text-sm font-bold">Join the Weekly Challenge first</p>
+                  <p className="text-xs text-muted-foreground">Compete on the leaderboard to qualify for local rewards.</p>
+                  <Button size="sm" className="mt-2" onClick={() => setActiveTab("challenge")}>
+                    Go to Challenge
+                  </Button>
+                </div>
+              ) : tier ? (
+                <div className={`rounded-xl border p-4 space-y-1 ${tierCfg!.bg}`}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-0.5">
+                          {Array.from({ length: tierCfg!.stars }).map((_, i) => (
+                            <Star key={i} className={`w-4 h-4 fill-current ${tierCfg!.color}`} />
+                          ))}
+                        </div>
+                        <span className={`text-sm font-bold ${tierCfg!.color}`}>{tierCfg!.label} Member</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">You're ranked <strong className="text-foreground">#{effectiveRank}</strong> this week — rewards unlocked!</p>
+                    </div>
+                    <div className={`text-3xl font-display font-black ${tierCfg!.color}`}>#{effectiveRank}</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-card border border-border rounded-xl p-4 space-y-2">
+                  <div className="flex items-justify gap-3">
+                    <div className="text-3xl font-display font-black text-muted-foreground">#{effectiveRank}</div>
+                    <div>
+                      <p className="text-sm font-bold">Not yet qualifying</p>
+                      <p className="text-xs text-muted-foreground">Reach <strong className="text-foreground">top 10</strong> on the leaderboard to unlock studio discounts.</p>
+                    </div>
+                  </div>
+                  <Progress value={Math.min(100, ((11 - (effectiveRank ?? 11)) / 10) * 100)} className="h-1.5" />
+                </div>
+              )}
+
+              {/* Studio cards */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <MapPin className="w-4 h-4 text-muted-foreground" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Partner Studios Near You</span>
+                </div>
+                <div className="space-y-3">
+                  {PARTNER_STUDIOS.map(studio => {
+                    const coupon = claimedCoupons[studio.id];
+                    const isCopied = copiedId === studio.id;
+                    const offerText = tier ? studio.offers[tier] : null;
+                    const locked = !tier;
+
+                    return (
+                      <div key={studio.id} className={`border rounded-xl p-4 space-y-3 transition-all ${locked ? "border-border bg-card opacity-60" : studio.accent}`}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-3">
+                            <div className="text-2xl">{studio.emoji}</div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-sm">{studio.name}</span>
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{studio.type}</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-0.5">{studio.tagline}</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-xs">
+                            {offerText ? (
+                              <span className="text-primary font-bold">{offerText}</span>
+                            ) : (
+                              <span className="text-muted-foreground">Normally ${studio.normalPrice}/class</span>
+                            )}
+                          </div>
+                          {!locked && (
+                            coupon ? (
+                              <button
+                                onClick={() => handleCopy(studio.id)}
+                                className="flex items-center gap-1.5 bg-muted hover:bg-muted/80 border border-border rounded-lg px-3 py-1.5 text-xs font-mono font-bold transition-colors min-w-0"
+                              >
+                                <span className="truncate max-w-[120px]">{coupon}</span>
+                                {isCopied ? <Check className="w-3 h-3 text-green-400 shrink-0" /> : <Copy className="w-3 h-3 shrink-0" />}
+                              </button>
+                            ) : (
+                              <Button size="sm" className="text-xs h-8 shrink-0" onClick={() => handleClaim(studio.id)}>
+                                Claim Reward
+                              </Button>
+                            )
+                          )}
+                          {locked && (
+                            <span className="text-[10px] text-muted-foreground">Rank top 10 to unlock</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <p className="text-[10px] text-muted-foreground text-center pb-2">
+                Rewards are issued weekly. Coupons valid at participating locations only. This is a preview of a live partnership program.
+              </p>
+            </div>
+          );
+        })()}
       </div>
     </AppLayout>
   );

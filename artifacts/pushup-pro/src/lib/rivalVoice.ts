@@ -49,17 +49,80 @@ const WORKOUT_TAUNTS: Record<number, string[]> = {
   100: ["One hundred reps. That is legendary. I bow to you.", "A hundred push-ups. You are an absolute machine.", "One hundred. I have no more trash talk. You've won today."],
 };
 
+// Voice priority: most natural-sounding first
+const VOICE_PRIORITY_PATTERNS = [
+  // Google neural (best quality in Chrome)
+  "Google US English",
+  // Microsoft neural online voices (Edge / Windows)
+  "Microsoft Aria Online",
+  "Microsoft Guy Online",
+  "Microsoft Jenny Online",
+  "Microsoft Davis Online",
+  "Microsoft Ana Online",
+  // Any Microsoft English
+  "Microsoft",
+  // Any Google English
+  "Google",
+  // Fallback: anything en-US
+  "en-US",
+  "en_US",
+];
+
+let _voiceCache: SpeechSynthesisVoice | null | undefined = undefined;
+
+function pickVoice(): SpeechSynthesisVoice | null {
+  if (_voiceCache !== undefined) return _voiceCache;
+  const voices = window.speechSynthesis.getVoices().filter(v =>
+    v.lang.startsWith("en") || v.lang.startsWith("en-") || v.lang.startsWith("en_")
+  );
+  if (!voices.length) return null;
+
+  for (const pattern of VOICE_PRIORITY_PATTERNS) {
+    const match = voices.find(v => v.name.includes(pattern) || v.lang.includes(pattern));
+    if (match) { _voiceCache = match; return match; }
+  }
+  _voiceCache = voices[0] ?? null;
+  return _voiceCache;
+}
+
+// Subtle personality tweaks — small deviations keep things natural-sounding
 function getVoiceParams(personality: string): { pitch: number; rate: number } {
   switch (personality) {
-    case "machine":    return { pitch: 0.75, rate: 0.88 };
-    case "grinder":    return { pitch: 1.1,  rate: 1.05 };
-    case "competitor": return { pitch: 0.95, rate: 0.92 };
-    case "comeback_kid": return { pitch: 1.05, rate: 1.0 };
-    case "underdog":   return { pitch: 1.15, rate: 1.0 };
-    case "consistent": return { pitch: 0.9,  rate: 0.95 };
-    case "weekend_warrior": return { pitch: 1.2, rate: 1.1 };
-    default:           return { pitch: 1.0,  rate: 1.0 };
+    case "machine":        return { pitch: 0.92, rate: 0.88 };
+    case "grinder":        return { pitch: 1.04, rate: 1.05 };
+    case "competitor":     return { pitch: 0.97, rate: 0.94 };
+    case "comeback_kid":   return { pitch: 1.02, rate: 0.98 };
+    case "underdog":       return { pitch: 1.05, rate: 1.0  };
+    case "consistent":     return { pitch: 0.95, rate: 0.96 };
+    case "weekend_warrior":return { pitch: 1.03, rate: 1.04 };
+    default:               return { pitch: 1.0,  rate: 1.0  };
   }
+}
+
+function speakLine(text: string, personality: string): void {
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+
+  const voice = pickVoice();
+  if (voice) utterance.voice = voice;
+
+  const { pitch, rate } = getVoiceParams(personality);
+  utterance.pitch = pitch;
+  utterance.rate  = rate;
+  utterance.volume = 0.92;
+
+  // If voices hadn't loaded yet, clear cache so next call re-selects
+  utterance.onerror = () => { _voiceCache = undefined; };
+
+  window.speechSynthesis.speak(utterance);
+}
+
+// Warm-up: trigger voice list load on module import so it's ready by first use
+if (typeof window !== "undefined" && "speechSynthesis" in window) {
+  window.speechSynthesis.getVoices();
+  window.speechSynthesis.onvoiceschanged = () => {
+    _voiceCache = undefined; // clear so next speakLine re-selects with full list
+  };
 }
 
 export function speakRivalGenerated(personality: string, name: string): void {
@@ -75,14 +138,4 @@ export function speakWorkoutTaunt(reps: number, personality: string, rivalName: 
   if (!lines) return;
   const line = lines[Math.floor(Math.random() * lines.length)]!;
   speakLine(`${rivalName.split(" ")[0]}: ${line}`, personality);
-}
-
-function speakLine(text: string, personality: string): void {
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  const { pitch, rate } = getVoiceParams(personality);
-  utterance.pitch = pitch;
-  utterance.rate = rate;
-  utterance.volume = 0.9;
-  window.speechSynthesis.speak(utterance);
 }
