@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Trophy, Users, Zap, Crown, UserPlus, Trash2, Flame, ChevronDown, ChevronUp } from "lucide-react";
+import { speakRivalGenerated } from "@/lib/rivalVoice";
 
 const RANK_COLORS = ["text-primary", "text-gray-300", "text-amber-600"];
 const FITNESS_LEVEL_LABELS: Record<string, string> = {
@@ -95,9 +96,10 @@ export default function Challenges() {
     generateRival.mutate(
       { userId, data: { style: selectedStyle as "machine" | "grinder" | "competitor" | "comeback_kid" | "underdog" | "random" } },
       {
-        onSuccess: () => {
+        onSuccess: (data) => {
           queryClient.invalidateQueries({ queryKey: getGetUserRivalsQueryKey(userId) });
           setShowStylePicker(false);
+          speakRivalGenerated(data.personality, data.name);
         },
       }
     );

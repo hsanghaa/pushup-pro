@@ -7,10 +7,13 @@ import { useRequireAuth } from "@/lib/auth";
 import {
   useCreateWorkout,
   useGetVariations,
+  useGetUserRivals,
   getGetUserStatsQueryKey,
   getGetUserWorkoutsQueryKey,
   getGetCoachMessageQueryKey,
+  getGetUserRivalsQueryKey,
 } from "@workspace/api-client-react";
+import { speakWorkoutTaunt } from "@/lib/rivalVoice";
 import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle, AlertCircle, Play, StopCircle } from "lucide-react";
 
@@ -116,6 +119,11 @@ export default function Workout() {
   const queryClient = useQueryClient();
   const createWorkout = useCreateWorkout();
 
+  const { data: rivals } = useGetUserRivals(userId!, {
+    query: { enabled: !!userId, queryKey: getGetUserRivalsQueryKey(userId!) },
+  });
+  const topRival = rivals?.[0] ?? null;
+
   const [phase, setPhase] = useState<WorkoutPhase>("setup");
   const [countdown, setCountdown] = useState(3);
   const [reps, setReps] = useState(0);
@@ -149,6 +157,8 @@ export default function Workout() {
   // Cooldown: prevent direction flip more than once per 500ms
   const lastDirectionChangeRef = useRef<number>(0);
   const DIRECTION_COOLDOWN_MS = 500;
+  // Track which rep milestones already had rival speech fired
+  const spokenMilestonesRef = useRef<Set<number>>(new Set());
 
   // Form tracking refs
   const peakLumRef = useRef<number>(0);  // highest lum in current direction
@@ -335,6 +345,16 @@ export default function Workout() {
     }, 1000);
   };
 
+  // Fire rival voice at rep milestones
+  useEffect(() => {
+    if (phase !== "active") return;
+    const MILESTONES = [5, 10, 15, 20, 25, 30, 40, 50, 75, 100];
+    if (MILESTONES.includes(reps) && !spokenMilestonesRef.current.has(reps) && topRival) {
+      spokenMilestonesRef.current.add(reps);
+      speakWorkoutTaunt(reps, topRival.personality, topRival.name);
+    }
+  }, [reps, phase, topRival]);
+
   const startWorkout = () => {
     setPhase("active");
     setReps(0);
@@ -342,6 +362,7 @@ export default function Workout() {
     repStateRef.current = "up";
     lastLumRef.current = null;
     lastDirectionChangeRef.current = 0;
+    spokenMilestonesRef.current = new Set();
     peakLumRef.current = 0;
     troughLumRef.current = 255;
     repStartTimeRef.current = 0;
@@ -364,6 +385,7 @@ export default function Workout() {
 
   const endWorkout = () => {
     clearAllIntervals();
+    window.speechSynthesis?.cancel();
     setManualReps(repsRef.current.toString());
     setPhase("summary");
   };
