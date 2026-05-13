@@ -14,8 +14,9 @@ import {
   getGetUserRivalsQueryKey,
 } from "@workspace/api-client-react";
 import { speakWorkoutTaunt } from "@/lib/rivalVoice";
+import { loadPoseLandmarker, type PoseLandmarker } from "@/lib/poseLandmarker";
 import { useQueryClient } from "@tanstack/react-query";
-import { CheckCircle, AlertCircle, Play, StopCircle } from "lucide-react";
+import { CheckCircle, AlertCircle, Play, StopCircle, Loader2, Scan } from "lucide-react";
 
 type WorkoutPhase = "setup" | "countdown" | "active" | "summary";
 
@@ -113,6 +114,42 @@ function scoreRep(amplitude: number, durationMs: number): RepQuality {
   return { amplitude, durationMs, score, grade };
 }
 
+// Compute the angle at joint b given three 2D points (a–b–c)
+function computeAngle(
+  a: { x: number; y: number },
+  b: { x: number; y: number },
+  c: { x: number; y: number }
+): number {
+  const rad = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
+  let deg = Math.abs((rad * 180) / Math.PI);
+  if (deg > 180) deg = 360 - deg;
+  return deg;
+}
+
+// Score a rep using real pose landmarks instead of luminance
+function scorePoseRep(depthDelta: number, durationMs: number, elbowAngle: number): RepQuality {
+  // Depth score: 0.06 threshold = ok, 0.12+ = full range
+  const depthScore = Math.min(70, Math.round((depthDelta / 0.12) * 70));
+
+  // Elbow angle at bottom: 80–105° is ideal chest-to-floor
+  let elbowScore: number;
+  if (elbowAngle >= 80 && elbowAngle <= 105) elbowScore = 30;
+  else if (elbowAngle >= 65 && elbowAngle < 80) elbowScore = 22;
+  else if (elbowAngle > 105 && elbowAngle <= 125) elbowScore = 18;
+  else elbowScore = 8;
+
+  const score = Math.round(depthScore + elbowScore);
+
+  let grade: FormGrade;
+  if (durationMs < 400) grade = "too_fast";
+  else if (score >= 80) grade = "excellent";
+  else if (score >= 60) grade = "good";
+  else if (score >= 40) grade = "ok";
+  else grade = "shallow";
+
+  return { amplitude: Math.round(depthDelta * 1000), durationMs, score, grade };
+}
+
 export default function Workout() {
   const userId = useRequireAuth();
   const [, setLocation] = useLocation();
@@ -132,6 +169,7 @@ export default function Workout() {
   const [manualReps, setManualReps] = useState("");
   const [saved, setSaved] = useState(false);
   const [cameraStatus, setCameraStatus] = useState<"checking" | "ready" | "error">("checking");
+  const [poseStatus, setPoseStatus] = useState<"loading" | "ready" | "error">("loading");
   const [coachMsg, setCoachMsg] = useState(COACH_MESSAGES["—"][0]);
 
   // Form quality state (drives UI)
@@ -149,6 +187,17 @@ export default function Workout() {
   const detectionIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const coachIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Pose estimation refs
+  const poseLandmarkerRef = useRef<PoseLandmarker | null>(null);
+  const poseReadyRef = useRef(false);  // non-stale access inside RAF
+  const rafRef = useRef<number | null>(null);
+  const phaseRef = useRef<WorkoutPhase>("setup");  // non-stale access inside RAF
+  // Pose-based calibration: collect shoulder Y samples, then set baseline
+  const shoulderSamplesRef = useRef<number[]>([]);
+  const shoulderBaselineRef = useRef<number | null>(null);
+  const shoulderPeakRef = useRef<number>(0);     // deepest nose Y seen in current "down" rep
+  const elbowAngleBottomRef = useRef<number>(90); // elbow angle at deepest point
 
   // Detection refs (no re-renders)
   const lastLumRef = useRef<number | null>(null);
@@ -208,7 +257,30 @@ export default function Workout() {
     }
   });
 
+  // Keep phaseRef in sync so RAF loop can read current phase without stale closure
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+
+  // Load MediaPipe pose model on mount (downloads ~5MB once, cached by browser)
+  useEffect(() => {
+    let cancelled = false;
+    loadPoseLandmarker()
+      .then((lm) => {
+        if (!cancelled) {
+          poseLandmarkerRef.current = lm;
+          poseReadyRef.current = true;
+          setPoseStatus("ready");
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setPoseStatus("error");
+      });
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const clearAllIntervals = () => {
+    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
     if (detectionIntervalRef.current) { clearInterval(detectionIntervalRef.current); detectionIntervalRef.current = null; }
     if (coachIntervalRef.current) { clearInterval(coachIntervalRef.current); coachIntervalRef.current = null; }
     if (countdownTimerRef.current) { clearInterval(countdownTimerRef.current); countdownTimerRef.current = null; }
@@ -342,6 +414,110 @@ export default function Workout() {
     lastLumRef.current = lum;
   }, [pickCoachMessage]);
 
+  // Pose-based rep detection — replaces luminance fallback when model is ready
+  const analyzeFramePose = useCallback(() => {
+    const landmarker = poseLandmarkerRef.current;
+    const video = videoRef.current;
+    if (!landmarker || !video || video.readyState < 2) return;
+
+    const result = landmarker.detectForVideo(video, performance.now());
+
+    if (result.landmarks.length === 0) {
+      setFormState((prev) => ({ ...prev, depthPct: 0 }));
+      return;
+    }
+
+    const lm = result.landmarks[0]!;
+    // Landmarks: 0=Nose 11=LShouldr 12=RShouldr 13=LElbow 14=RElbow 15=LWrist 16=RWrist
+    const nose = lm[0]!;
+    const lShoulder = lm[11]!, rShoulder = lm[12]!;
+    const lElbow = lm[13]!, rElbow = lm[14]!;
+    const lWrist = lm[15]!, rWrist = lm[16]!;
+
+    // Need nose to be detected — it's the most reliable cross-orientation signal
+    if ((nose.visibility ?? 0) < 0.3) return;
+
+    // Nose Y increases as person goes toward floor; works for both side & front views
+    const trackY = nose.y;
+
+    // Calibrate baseline from first 30 frames (~1s at 30fps): person should be in "up" position
+    if (shoulderSamplesRef.current.length < 30) {
+      shoulderSamplesRef.current.push(trackY);
+      if (shoulderSamplesRef.current.length === 30) {
+        const sorted = [...shoulderSamplesRef.current].sort((a, b) => a - b);
+        // 25th percentile = consistent "up" position, excluding brief dips
+        shoulderBaselineRef.current = sorted[Math.floor(sorted.length * 0.25)]!;
+      }
+      return;
+    }
+
+    const baseline = shoulderBaselineRef.current!;
+
+    // Live depth bar (0–100)
+    const delta = Math.max(0, trackY - baseline);
+    const depthPct = Math.min(100, Math.round((delta / 0.12) * 100));
+    setFormState((prev) => ({ ...prev, depthPct }));
+
+    // Elbow angle on whichever side is more visible (form scoring)
+    const lVis = lShoulder.visibility ?? 0;
+    const rVis = rShoulder.visibility ?? 0;
+    let elbowAngle = 90;
+    if (lVis >= rVis && lVis > 0.3) {
+      elbowAngle = computeAngle(lShoulder, lElbow, lWrist);
+    } else if (rVis > 0.3) {
+      elbowAngle = computeAngle(rShoulder, rElbow, rWrist);
+    }
+
+    const DOWN_THRESHOLD = baseline + 0.07;  // nose drops 7% = going down
+    const UP_THRESHOLD   = baseline + 0.025; // back within 2.5% of baseline = fully up
+    const now = Date.now();
+
+    if (repStateRef.current === "up" && trackY > DOWN_THRESHOLD) {
+      if (now - lastDirectionChangeRef.current > DIRECTION_COOLDOWN_MS) {
+        repStateRef.current = "down";
+        shoulderPeakRef.current = trackY;
+        elbowAngleBottomRef.current = elbowAngle;
+        repStartTimeRef.current = now;
+        lastDirectionChangeRef.current = now;
+      }
+    } else if (repStateRef.current === "down") {
+      // Update deepest point
+      if (trackY > shoulderPeakRef.current) {
+        shoulderPeakRef.current = trackY;
+        elbowAngleBottomRef.current = elbowAngle;
+      }
+      if (trackY < UP_THRESHOLD && now - lastDirectionChangeRef.current > DIRECTION_COOLDOWN_MS) {
+        lastDirectionChangeRef.current = now;
+        repStateRef.current = "up";
+
+        const depthDelta = shoulderPeakRef.current - baseline;
+        const durationMs = now - repStartTimeRef.current;
+
+        if (depthDelta < 0.04) return; // too shallow — not a real push-up
+
+        const quality = scorePoseRep(depthDelta, durationMs, elbowAngleBottomRef.current);
+        repAmplitudeHistoryRef.current.push(quality);
+        if (repAmplitudeHistoryRef.current.length > 8) repAmplitudeHistoryRef.current.shift();
+
+        const history = repAmplitudeHistoryRef.current;
+        const avgScore = Math.round(history.reduce((a, b) => a + b.score, 0) / history.length);
+        const avgGrade = history[history.length - 1]!.grade;
+
+        setReps((r) => r + 1);
+        repsRef.current += 1;
+
+        setFormState((prev) => ({
+          ...prev,
+          score: avgScore,
+          grade: avgGrade,
+          lastRepGrade: quality.grade,
+        }));
+
+        pickCoachMessage(quality.grade);
+      }
+    }
+  }, [pickCoachMessage]);
+
   const startCountdown = () => {
     setPhase("countdown");
     setCountdown(3);
@@ -368,6 +544,7 @@ export default function Workout() {
   }, [reps, phase, topRival]);
 
   const startWorkout = () => {
+    phaseRef.current = "active"; // sync immediately so RAF loop sees it
     setPhase("active");
     setReps(0);
     repsRef.current = 0;
@@ -383,11 +560,27 @@ export default function Workout() {
     calibAmplitudeRef.current = null;
     neutralLumRef.current = null;
     lumWindowRef.current = [];
+    // Reset pose calibration for fresh workout
+    shoulderSamplesRef.current = [];
+    shoulderBaselineRef.current = null;
+    shoulderPeakRef.current = 0;
+    elbowAngleBottomRef.current = 90;
     setFormState({ score: 0, grade: "—", lastRepGrade: "—", depthPct: 0 });
 
-    detectionIntervalRef.current = setInterval(analyzeFrame, 100); // 10fps sampling
+    if (poseReadyRef.current) {
+      // Pose model loaded: use landmark-based detection at full frame rate
+      const loop = () => {
+        if (phaseRef.current !== "active") return;
+        analyzeFramePose();
+        rafRef.current = requestAnimationFrame(loop);
+      };
+      rafRef.current = requestAnimationFrame(loop);
+    } else {
+      // Fallback: luminance-based detection at 10fps
+      detectionIntervalRef.current = setInterval(analyzeFrame, 100);
+    }
 
-    // Initial coach message
+    // Periodic coach messages every 10s
     coachIntervalRef.current = setInterval(() => {
       const grade = repAmplitudeHistoryRef.current.length > 0
         ? repAmplitudeHistoryRef.current[repAmplitudeHistoryRef.current.length - 1].grade
@@ -397,6 +590,7 @@ export default function Workout() {
   };
 
   const endWorkout = () => {
+    phaseRef.current = "summary"; // stop RAF loop before clearing
     clearAllIntervals();
     window.speechSynthesis?.cancel();
     setManualReps(repsRef.current.toString());
@@ -475,7 +669,20 @@ export default function Workout() {
                 <><div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse shrink-0" /><span className="text-sm font-mono text-yellow-300">Checking camera access...</span></>
               )}
               {cameraStatus === "ready" && (
-                <><CheckCircle className="w-4 h-4 text-primary shrink-0" /><span className="text-sm font-mono text-primary">Camera ready — form scoring active.</span></>
+                <><CheckCircle className="w-4 h-4 text-primary shrink-0" /><span className="text-sm font-mono text-primary">Camera ready.</span></>
+              )}
+            </div>
+
+            {/* Pose model status */}
+            <div className="bg-black/60 backdrop-blur-sm border border-white/10 rounded-xl p-3 flex items-center gap-2">
+              {poseStatus === "loading" && (
+                <><Loader2 className="w-4 h-4 text-yellow-300 animate-spin shrink-0" /><span className="text-sm font-mono text-yellow-300">Loading body tracking model...</span></>
+              )}
+              {poseStatus === "ready" && (
+                <><Scan className="w-4 h-4 text-primary shrink-0" /><span className="text-sm font-mono text-primary">Body tracking ready — push-ups only.</span></>
+              )}
+              {poseStatus === "error" && (
+                <><AlertCircle className="w-4 h-4 text-orange-400 shrink-0" /><span className="text-sm font-mono text-orange-300">Body tracking unavailable — using motion fallback.</span></>
               )}
             </div>
 
