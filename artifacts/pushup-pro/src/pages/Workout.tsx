@@ -16,15 +16,99 @@ import { CheckCircle, AlertCircle, Play, StopCircle } from "lucide-react";
 
 type WorkoutPhase = "setup" | "countdown" | "active" | "summary";
 
-const COACH_MESSAGES = [
-  "You've got this. Stay tight.",
-  "Keep going. Every rep counts.",
-  "Strong form. Keep pushing.",
-  "Breathe. Down and up. You're crushing it.",
-  "Don't stop now. Push through.",
-  "Looking good. Stay focused.",
-  "That's real strength. Keep moving.",
-];
+type FormGrade = "excellent" | "good" | "ok" | "shallow" | "too_fast" | "—";
+
+interface RepQuality {
+  amplitude: number; // luminance swing (depth proxy)
+  durationMs: number; // how long the rep took
+  score: number; // 0–100
+  grade: FormGrade;
+}
+
+interface FormState {
+  score: number; // rolling avg 0–100
+  grade: FormGrade;
+  lastRepGrade: FormGrade;
+  depthPct: number; // 0–100 live range-of-motion indicator
+}
+
+const COACH_MESSAGES: Record<FormGrade, string[]> = {
+  excellent: [
+    "Perfect depth — that's textbook form.",
+    "Every rep locked in. Keep it up.",
+    "Full range of motion. You're a machine.",
+  ],
+  good: [
+    "Solid reps. Try to squeeze a bit lower.",
+    "Good work — push for full depth.",
+    "Strong pace. You've got this.",
+  ],
+  ok: [
+    "Go deeper on each rep.",
+    "Lock your core and lower all the way.",
+    "Slow it down, get full range.",
+  ],
+  shallow: [
+    "You're going too shallow — chest to the floor.",
+    "Don't cheat yourself. Full depth matters.",
+    "Slow down and go all the way down.",
+  ],
+  too_fast: [
+    "Slow down — quality beats speed every time.",
+    "Control the movement. Don't rush.",
+    "Tempo matters. Two seconds down, two up.",
+  ],
+  "—": [
+    "You've got this. Stay tight.",
+    "Keep going. Every rep counts.",
+    "Breathe. Down and up.",
+  ],
+};
+
+const GRADE_CONFIG: Record<FormGrade, { label: string; color: string; bg: string; border: string }> = {
+  excellent: { label: "Excellent", color: "text-emerald-300", bg: "bg-emerald-500/20", border: "border-emerald-500/40" },
+  good: { label: "Good", color: "text-primary", bg: "bg-primary/20", border: "border-primary/40" },
+  ok: { label: "OK", color: "text-yellow-300", bg: "bg-yellow-500/15", border: "border-yellow-500/30" },
+  shallow: { label: "Shallow", color: "text-orange-300", bg: "bg-orange-500/15", border: "border-orange-500/30" },
+  too_fast: { label: "Too Fast", color: "text-red-300", bg: "bg-red-500/15", border: "border-red-500/30" },
+  "—": { label: "—", color: "text-white/40", bg: "bg-white/5", border: "border-white/10" },
+};
+
+function scoreRep(amplitude: number, durationMs: number): RepQuality {
+  // Amplitude score: 0–70 points
+  // amplitude < 4  → 0 pts (barely moved)
+  // amplitude 8–20 → 40–70 pts (good range)
+  // amplitude > 20 → max 70 pts
+  const ampScore = Math.min(70, Math.max(0, ((amplitude - 4) / 16) * 70));
+
+  // Tempo score: 0–30 points
+  // < 400ms  → 0 pts (way too fast)
+  // 600–2000ms → 20–30 pts (sweet spot)
+  // > 3500ms → 10 pts (very slow)
+  let tempoScore = 0;
+  if (durationMs < 400) {
+    tempoScore = 0;
+  } else if (durationMs < 600) {
+    tempoScore = 10;
+  } else if (durationMs <= 2000) {
+    tempoScore = 20 + ((durationMs - 600) / 1400) * 10;
+  } else if (durationMs <= 3500) {
+    tempoScore = 30;
+  } else {
+    tempoScore = 15;
+  }
+
+  const score = Math.round(ampScore + tempoScore);
+
+  let grade: FormGrade;
+  if (durationMs < 400) grade = "too_fast";
+  else if (score >= 80) grade = "excellent";
+  else if (score >= 60) grade = "good";
+  else if (score >= 40) grade = "ok";
+  else grade = "shallow";
+
+  return { amplitude, durationMs, score, grade };
+}
 
 export default function Workout() {
   const userId = useRequireAuth();
@@ -40,9 +124,17 @@ export default function Workout() {
   const [manualReps, setManualReps] = useState("");
   const [saved, setSaved] = useState(false);
   const [cameraStatus, setCameraStatus] = useState<"checking" | "ready" | "error">("checking");
-  const [coachMsg, setCoachMsg] = useState(COACH_MESSAGES[0]);
+  const [coachMsg, setCoachMsg] = useState(COACH_MESSAGES["—"][0]);
 
-  // Keep video always in DOM — only one element, always mounted
+  // Form quality state (drives UI)
+  const [formState, setFormState] = useState<FormState>({
+    score: 0,
+    grade: "—",
+    lastRepGrade: "—",
+    depthPct: 0,
+  });
+
+  // Always-mounted video
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -50,37 +142,32 @@ export default function Workout() {
   const coachIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Rep detection state in refs (no re-renders needed)
+  // Detection refs (no re-renders)
   const lastLumRef = useRef<number | null>(null);
   const repStateRef = useRef<"up" | "down">("up");
   const repsRef = useRef(0);
-  const phaseRef = useRef<WorkoutPhase>("setup");
+
+  // Form tracking refs
+  const peakLumRef = useRef<number>(0);  // highest lum in current direction
+  const troughLumRef = useRef<number>(255); // lowest lum in current direction
+  const repStartTimeRef = useRef<number>(0);
+  const repAmplitudeHistoryRef = useRef<RepQuality[]>([]);
+  // Calibration: baseline amplitude range when user first starts
+  const calibAmplitudeRef = useRef<number | null>(null);
+  // For the live depth bar: current deviation from neutral
+  const neutralLumRef = useRef<number | null>(null);
+  const lumWindowRef = useRef<number[]>([]);  // rolling 10-frame window
 
   const { data: variations } = useGetVariations();
 
-  // Keep phaseRef in sync
-  useEffect(() => {
-    phaseRef.current = phase;
-  }, [phase]);
-
-  // Keep repsRef in sync with reps state
-  useEffect(() => {
-    repsRef.current = reps;
-  }, [reps]);
-
-  // Start camera on mount; never stop the stream until unmount or user explicitly stops
   useEffect(() => {
     let cancelled = false;
-
     (async () => {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
         });
-        if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop());
-          return;
-        }
+        if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
         streamRef.current = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
@@ -91,18 +178,14 @@ export default function Workout() {
         if (!cancelled) setCameraStatus("error");
       }
     })();
-
     return () => {
       cancelled = true;
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-        streamRef.current = null;
-      }
+      if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
       clearAllIntervals();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // If video element re-attaches (shouldn't happen but safety net)
+  // Safety: re-attach stream if video loses it
   useEffect(() => {
     if (videoRef.current && streamRef.current && !videoRef.current.srcObject) {
       videoRef.current.srcObject = streamRef.current;
@@ -116,53 +199,109 @@ export default function Workout() {
     if (countdownTimerRef.current) { clearInterval(countdownTimerRef.current); countdownTimerRef.current = null; }
   };
 
+  const pickCoachMessage = useCallback((grade: FormGrade) => {
+    const pool = COACH_MESSAGES[grade] ?? COACH_MESSAGES["—"];
+    const idx = Math.floor(Math.random() * pool.length);
+    setCoachMsg(pool[idx]);
+  }, []);
+
   const analyzeFrame = useCallback(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas || video.readyState < 2) return;
-
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    // Sample a 16×16 region from the lower center of the frame (chest/body area during push-ups)
     const sw = video.videoWidth;
     const sh = video.videoHeight;
     if (!sw || !sh) return;
 
-    const regionX = sw * 0.25;
-    const regionY = sh * 0.35;
-    const regionW = sw * 0.5;
-    const regionH = sh * 0.4;
-
+    // Sample central body region
     canvas.width = 16;
     canvas.height = 16;
-    ctx.drawImage(video, regionX, regionY, regionW, regionH, 0, 0, 16, 16);
+    ctx.drawImage(video, sw * 0.25, sh * 0.35, sw * 0.5, sh * 0.4, 0, 0, 16, 16);
 
-    const imageData = ctx.getImageData(0, 0, 16, 16);
-    const data = imageData.data;
+    const data = ctx.getImageData(0, 0, 16, 16).data;
     let lum = 0;
     for (let i = 0; i < data.length; i += 4) {
       lum += 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2];
     }
-    lum /= 16 * 16;
+    lum /= 256; // 16×16 pixels
 
+    // Rolling window for neutral baseline (50 frames ≈ 6s)
+    lumWindowRef.current.push(lum);
+    if (lumWindowRef.current.length > 50) lumWindowRef.current.shift();
+
+    // Establish neutral lum from window average
+    const avgLum = lumWindowRef.current.reduce((a, b) => a + b, 0) / lumWindowRef.current.length;
+    if (neutralLumRef.current === null) neutralLumRef.current = avgLum;
+
+    // Live depth bar: deviation from neutral, normalized to 0–100
+    const deviation = Math.abs(lum - (neutralLumRef.current ?? avgLum));
+    const dynRange = calibAmplitudeRef.current ?? 15; // use calibrated range or fallback
+    const depthPct = Math.min(100, Math.round((deviation / dynRange) * 100));
+
+    // Update depth bar at every frame (cheap state update)
+    setFormState((prev) => ({ ...prev, depthPct }));
+
+    // Rep detection
     if (lastLumRef.current !== null) {
       const diff = Math.abs(lum - lastLumRef.current);
 
-      // Threshold: 5 means meaningful body movement in the frame
+      // Track peak/trough for amplitude measurement
+      if (repStateRef.current === "down") {
+        troughLumRef.current = Math.min(troughLumRef.current, lum);
+      } else {
+        peakLumRef.current = Math.max(peakLumRef.current, lum);
+      }
+
       if (diff > 5) {
         if (repStateRef.current === "up") {
-          // Going down
+          // Start going down
           repStateRef.current = "down";
+          troughLumRef.current = lum;
+          repStartTimeRef.current = Date.now();
         } else {
-          // Coming back up — count a rep
+          // Coming back up — rep complete
           repStateRef.current = "up";
+          peakLumRef.current = lum;
+
+          const amplitude = peakLumRef.current - troughLumRef.current;
+          const durationMs = Date.now() - repStartTimeRef.current;
+
+          // Calibrate dynamic range from first few reps
+          if (calibAmplitudeRef.current === null) {
+            calibAmplitudeRef.current = Math.max(amplitude, 8);
+          } else {
+            // Slow-update calibration
+            calibAmplitudeRef.current = calibAmplitudeRef.current * 0.85 + amplitude * 0.15;
+          }
+
+          const quality = scoreRep(amplitude, durationMs);
+          repAmplitudeHistoryRef.current.push(quality);
+          if (repAmplitudeHistoryRef.current.length > 8) repAmplitudeHistoryRef.current.shift();
+
+          // Rolling average score
+          const history = repAmplitudeHistoryRef.current;
+          const avgScore = Math.round(history.reduce((a, b) => a + b.score, 0) / history.length);
+          const avgGrade = history[history.length - 1].grade;
+
           setReps((r) => r + 1);
+          repsRef.current += 1;
+
+          setFormState((prev) => ({
+            ...prev,
+            score: avgScore,
+            grade: avgGrade,
+            lastRepGrade: quality.grade,
+          }));
+
+          pickCoachMessage(quality.grade);
         }
       }
     }
     lastLumRef.current = lum;
-  }, []);
+  }, [pickCoachMessage]);
 
   const startCountdown = () => {
     setPhase("countdown");
@@ -185,16 +324,24 @@ export default function Workout() {
     repsRef.current = 0;
     repStateRef.current = "up";
     lastLumRef.current = null;
+    peakLumRef.current = 0;
+    troughLumRef.current = 255;
+    repStartTimeRef.current = 0;
+    repAmplitudeHistoryRef.current = [];
+    calibAmplitudeRef.current = null;
+    neutralLumRef.current = null;
+    lumWindowRef.current = [];
+    setFormState({ score: 0, grade: "—", lastRepGrade: "—", depthPct: 0 });
 
-    // Sample frames every 120ms for smooth detection
-    detectionIntervalRef.current = setInterval(analyzeFrame, 120);
+    detectionIntervalRef.current = setInterval(analyzeFrame, 100); // 10fps sampling
 
-    // Rotate coach messages every 8 seconds
-    let msgIdx = 0;
+    // Initial coach message
     coachIntervalRef.current = setInterval(() => {
-      msgIdx = (msgIdx + 1) % COACH_MESSAGES.length;
-      setCoachMsg(COACH_MESSAGES[msgIdx]);
-    }, 8000);
+      const grade = repAmplitudeHistoryRef.current.length > 0
+        ? repAmplitudeHistoryRef.current[repAmplitudeHistoryRef.current.length - 1].grade
+        : "—";
+      pickCoachMessage(grade);
+    }, 10000);
   };
 
   const endWorkout = () => {
@@ -206,17 +353,8 @@ export default function Workout() {
   const saveWorkout = () => {
     const finalReps = parseInt(manualReps, 10);
     if (!userId || isNaN(finalReps)) return;
-
     createWorkout.mutate(
-      {
-        data: {
-          userId,
-          totalReps: finalReps,
-          sets,
-          variation,
-          usedCamera: cameraStatus === "ready",
-        },
-      },
+      { data: { userId, totalReps: finalReps, sets, variation, usedCamera: cameraStatus === "ready" } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetUserStatsQueryKey(userId) });
@@ -229,21 +367,28 @@ export default function Workout() {
     );
   };
 
+  // Summary stats from history
+  const summaryHistory = repAmplitudeHistoryRef.current;
+  const summaryAvgScore = summaryHistory.length > 0
+    ? Math.round(summaryHistory.reduce((a, b) => a + b.score, 0) / summaryHistory.length)
+    : 0;
+  const excellentCount = summaryHistory.filter((r) => r.grade === "excellent").length;
+  const goodCount = summaryHistory.filter((r) => r.grade === "good").length;
+  const shallowCount = summaryHistory.filter((r) => r.grade === "shallow" || r.grade === "too_fast").length;
+
   if (!userId) return null;
+
+  const formCfg = GRADE_CONFIG[formState.grade];
 
   return (
     <AppLayout showNav={false}>
-      {/* 
-        The video element must stay mounted in the DOM at all times.
-        We overlay different UIs on top of it using absolute positioning.
-      */}
       <div className="min-h-[100dvh] bg-black flex flex-col relative overflow-hidden">
-        {/* Always-mounted video */}
+        {/* Always-mounted video layer */}
         <video
           ref={videoRef}
           className="absolute inset-0 w-full h-full object-cover"
           style={{
-            opacity: phase === "setup" ? 1 : phase === "active" ? 0.35 : 0,
+            opacity: phase === "setup" ? 1 : phase === "active" ? 0.3 : 0,
             transition: "opacity 0.5s ease",
           }}
           muted
@@ -257,10 +402,7 @@ export default function Workout() {
           <button
             onClick={() => {
               clearAllIntervals();
-              if (streamRef.current) {
-                streamRef.current.getTracks().forEach((t) => t.stop());
-                streamRef.current = null;
-              }
+              if (streamRef.current) { streamRef.current.getTracks().forEach((t) => t.stop()); streamRef.current = null; }
               setLocation("/dashboard");
             }}
             className="text-white/60 hover:text-white text-sm font-mono uppercase tracking-wider"
@@ -274,65 +416,41 @@ export default function Workout() {
         {/* ── SETUP PHASE ── */}
         {phase === "setup" && (
           <div className="relative z-10 flex-1 flex flex-col p-4 gap-4">
-            {/* Camera status badge */}
             <div className="flex-1" />
             <div className="bg-black/60 backdrop-blur-sm border border-white/10 rounded-xl p-3 flex items-center gap-2">
               {cameraStatus === "checking" && (
-                <>
-                  <div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse shrink-0" />
-                  <span className="text-sm font-mono text-yellow-300">Checking camera access...</span>
-                </>
+                <><div className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse shrink-0" /><span className="text-sm font-mono text-yellow-300">Checking camera access...</span></>
               )}
               {cameraStatus === "ready" && (
-                <>
-                  <CheckCircle className="w-4 h-4 text-primary shrink-0" />
-                  <span className="text-sm font-mono text-primary">Camera ready. Get into push-up position.</span>
-                </>
+                <><CheckCircle className="w-4 h-4 text-primary shrink-0" /><span className="text-sm font-mono text-primary">Camera ready — form scoring active.</span></>
               )}
               {cameraStatus === "error" && (
-                <>
-                  <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-                  <span className="text-sm font-mono text-red-300">No camera. Count reps manually after session.</span>
-                </>
+                <><AlertCircle className="w-4 h-4 text-red-400 shrink-0" /><span className="text-sm font-mono text-red-300">No camera. Count reps manually after session.</span></>
               )}
             </div>
 
             <div className="space-y-3 bg-black/60 backdrop-blur-sm border border-white/10 rounded-xl p-4">
               <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-white/50 block mb-1">
-                  Variation
-                </label>
+                <label className="text-xs font-bold uppercase tracking-wider text-white/50 block mb-1">Variation</label>
                 <select
                   value={variation}
                   onChange={(e) => setVariation(e.target.value)}
                   className="w-full h-11 px-3 rounded-lg bg-white/10 border border-white/20 text-white text-sm font-medium focus:outline-none focus:border-primary"
                 >
                   {variations?.map((v) => (
-                    <option key={v.id} value={v.name} className="bg-neutral-900">
-                      {v.name}
-                    </option>
+                    <option key={v.id} value={v.name} className="bg-neutral-900">{v.name}</option>
                   ))}
-                  {!variations?.length && (
-                    <option value="Standard Push-Up" className="bg-neutral-900">
-                      Standard Push-Up
-                    </option>
-                  )}
+                  {!variations?.length && <option value="Standard Push-Up" className="bg-neutral-900">Standard Push-Up</option>}
                 </select>
               </div>
               <div>
-                <label className="text-xs font-bold uppercase tracking-wider text-white/50 block mb-1">
-                  Sets planned
-                </label>
+                <label className="text-xs font-bold uppercase tracking-wider text-white/50 block mb-1">Sets planned</label>
                 <div className="flex gap-2">
                   {[1, 2, 3, 4, 5].map((n) => (
                     <button
                       key={n}
                       onClick={() => setSets(n)}
-                      className={`flex-1 h-10 rounded-lg text-sm font-bold border transition-colors ${
-                        sets === n
-                          ? "bg-primary text-black border-primary"
-                          : "bg-white/10 border-white/20 text-white/70 hover:border-primary/50"
-                      }`}
+                      className={`flex-1 h-10 rounded-lg text-sm font-bold border transition-colors ${sets === n ? "bg-primary text-black border-primary" : "bg-white/10 border-white/20 text-white/70 hover:border-primary/50"}`}
                     >
                       {n}
                     </button>
@@ -341,11 +459,7 @@ export default function Workout() {
               </div>
             </div>
 
-            <Button
-              onClick={startCountdown}
-              size="lg"
-              className="w-full h-14 text-lg font-display uppercase tracking-widest bg-primary text-black hover:bg-primary/90"
-            >
+            <Button onClick={startCountdown} size="lg" className="w-full h-14 text-lg font-display uppercase tracking-widest bg-primary text-black hover:bg-primary/90">
               <Play className="w-5 h-5 mr-2" /> Start Session
             </Button>
           </div>
@@ -355,9 +469,7 @@ export default function Workout() {
         {phase === "countdown" && (
           <div className="relative z-10 flex-1 flex flex-col items-center justify-center gap-4">
             <p className="text-white/50 font-mono text-sm uppercase tracking-widest">Get Ready</p>
-            <div className="text-[160px] font-display font-black text-primary leading-none tabular-nums">
-              {countdown}
-            </div>
+            <div className="text-[160px] font-display font-black text-primary leading-none tabular-nums">{countdown}</div>
             <p className="text-white/60 font-mono text-sm">Position yourself in push-up position</p>
           </div>
         )}
@@ -365,32 +477,79 @@ export default function Workout() {
         {/* ── ACTIVE PHASE ── */}
         {phase === "active" && (
           <div className="relative z-10 flex-1 flex flex-col">
-            <div className="flex-1 flex flex-col items-center justify-center gap-3 px-4">
-              <p className="text-white/50 font-mono text-xs uppercase tracking-widest">Reps</p>
-              <div
-                key={reps}
-                className="text-[120px] font-display font-black text-primary leading-none tabular-nums"
-                style={{ textShadow: "0 0 40px rgba(212,255,0,0.4)" }}
-              >
-                {reps}
+            {/* ── FORM HUD bar (top) ── */}
+            <div className="px-4 pt-3 flex items-center gap-3">
+              {/* Form grade pill */}
+              <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-bold uppercase tracking-wider ${formCfg.bg} ${formCfg.border} ${formCfg.color}`}>
+                <div className={`w-1.5 h-1.5 rounded-full ${formState.grade === "excellent" ? "bg-emerald-400" : formState.grade === "good" ? "bg-primary" : formState.grade === "ok" ? "bg-yellow-400" : formState.grade === "—" ? "bg-white/30" : "bg-red-400"} animate-pulse`} />
+                {formCfg.label}
               </div>
-              <p className="text-sm text-white/50 font-mono px-8 text-center italic mt-2">
-                "{coachMsg}"
-              </p>
-              <button
-                onClick={() => setReps((r) => r + 1)}
-                className="mt-4 px-6 py-2.5 rounded-full border border-primary/40 text-primary text-xs font-mono uppercase tracking-wider hover:bg-primary/10 transition-colors"
-              >
-                + Tap to count manually
-              </button>
+
+              {/* Score */}
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-display font-black text-white tabular-nums">
+                  {formState.score > 0 ? formState.score : "—"}
+                </span>
+                {formState.score > 0 && <span className="text-xs font-mono text-white/40">/100</span>}
+              </div>
+
+              {/* Last rep flash */}
+              {formState.lastRepGrade !== "—" && formState.lastRepGrade !== formState.grade && (
+                <div className={`ml-auto text-[10px] font-mono uppercase tracking-wider px-2 py-1 rounded-full ${GRADE_CONFIG[formState.lastRepGrade].bg} ${GRADE_CONFIG[formState.lastRepGrade].color}`}>
+                  last: {GRADE_CONFIG[formState.lastRepGrade].label}
+                </div>
+              )}
             </div>
+
+            {/* ── MAIN REP AREA + DEPTH BAR ── */}
+            <div className="flex-1 flex items-center justify-center gap-4 px-4">
+              {/* Rep counter */}
+              <div className="flex-1 flex flex-col items-center gap-2">
+                <p className="text-white/40 font-mono text-xs uppercase tracking-widest">Reps</p>
+                <div
+                  className="text-[110px] font-display font-black text-primary leading-none tabular-nums"
+                  style={{ textShadow: "0 0 40px rgba(212,255,0,0.4)" }}
+                >
+                  {reps}
+                </div>
+                <p className="text-xs text-white/40 font-mono px-4 text-center italic">"{coachMsg}"</p>
+                <button
+                  onClick={() => { setReps((r) => r + 1); repsRef.current += 1; }}
+                  className="mt-2 px-5 py-2 rounded-full border border-primary/40 text-primary text-xs font-mono uppercase tracking-wider hover:bg-primary/10 transition-colors"
+                >
+                  + Manual count
+                </button>
+              </div>
+
+              {/* Depth bar (only when camera is ready) */}
+              {cameraStatus === "ready" && (
+                <div className="flex flex-col items-center gap-2 w-8">
+                  <span className="text-[9px] font-mono text-white/30 uppercase tracking-widest rotate-180" style={{ writingMode: "vertical-rl" }}>Depth</span>
+                  {/* Track */}
+                  <div className="relative w-4 rounded-full bg-white/10 border border-white/10 overflow-hidden" style={{ height: 160 }}>
+                    {/* Fill grows from bottom */}
+                    <div
+                      className="absolute bottom-0 left-0 right-0 rounded-full transition-all duration-100"
+                      style={{
+                        height: `${formState.depthPct}%`,
+                        background: formState.depthPct > 75
+                          ? "linear-gradient(to top, #34d399, #D4FF00)"
+                          : formState.depthPct > 40
+                          ? "linear-gradient(to top, #D4FF00, #D4FF00)"
+                          : "linear-gradient(to top, #fb923c, #D4FF00)",
+                      }}
+                    />
+                    {/* Target line at 75% */}
+                    <div className="absolute left-0 right-0 border-t border-dashed border-white/30" style={{ bottom: "75%" }} />
+                  </div>
+                  <span className="text-[9px] font-mono text-white/30 uppercase tracking-widest rotate-180" style={{ writingMode: "vertical-rl" }}>ROM</span>
+                </div>
+              )}
+            </div>
+
+            {/* ── End button ── */}
             <div className="p-4">
-              <Button
-                onClick={endWorkout}
-                size="lg"
-                variant="destructive"
-                className="w-full h-14 text-lg font-display uppercase tracking-widest"
-              >
+              <Button onClick={endWorkout} size="lg" variant="destructive" className="w-full h-14 text-lg font-display uppercase tracking-widest">
                 <StopCircle className="w-5 h-5 mr-2" /> End Workout
               </Button>
             </div>
@@ -399,19 +558,59 @@ export default function Workout() {
 
         {/* ── SUMMARY PHASE ── */}
         {phase === "summary" && (
-          <div className="relative z-10 flex-1 flex flex-col p-4 gap-5 bg-background">
-            <div className="text-center pt-6">
-              <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2">
-                Session Complete
-              </p>
-              <div
-                className="text-8xl font-display font-black text-primary leading-none mb-1"
-                style={{ textShadow: "0 0 40px rgba(212,255,0,0.25)" }}
-              >
+          <div className="relative z-10 flex-1 flex flex-col p-4 gap-4 bg-background overflow-y-auto">
+            <div className="text-center pt-4">
+              <p className="text-xs font-mono uppercase tracking-widest text-muted-foreground mb-2">Session Complete</p>
+              <div className="text-8xl font-display font-black text-primary leading-none mb-1" style={{ textShadow: "0 0 40px rgba(212,255,0,0.2)" }}>
                 {manualReps}
               </div>
               <p className="text-muted-foreground font-mono text-sm">push-ups</p>
             </div>
+
+            {/* Form score summary */}
+            {summaryHistory.length > 0 && (
+              <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Form Score</p>
+                  <div className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${GRADE_CONFIG[formState.grade].bg} ${GRADE_CONFIG[formState.grade].border} ${GRADE_CONFIG[formState.grade].color}`}>
+                    {formState.grade !== "—" ? GRADE_CONFIG[formState.grade].label : "—"}
+                  </div>
+                </div>
+
+                {/* Score bar */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs font-mono text-muted-foreground">
+                    <span>Overall</span>
+                    <span className="font-bold text-foreground">{summaryAvgScore}/100</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-secondary overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all duration-700"
+                      style={{
+                        width: `${summaryAvgScore}%`,
+                        background: summaryAvgScore >= 80 ? "#34d399" : summaryAvgScore >= 60 ? "#D4FF00" : summaryAvgScore >= 40 ? "#fb923c" : "#ef4444",
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Rep quality breakdown */}
+                <div className="grid grid-cols-3 gap-2 text-center text-xs font-mono">
+                  <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-lg py-2">
+                    <div className="text-xl font-display font-black text-emerald-400">{excellentCount + goodCount}</div>
+                    <div className="text-emerald-400/70 mt-0.5">Deep</div>
+                  </div>
+                  <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg py-2">
+                    <div className="text-xl font-display font-black text-yellow-300">{summaryHistory.filter(r => r.grade === "ok").length}</div>
+                    <div className="text-yellow-300/70 mt-0.5">OK</div>
+                  </div>
+                  <div className="bg-red-500/10 border border-red-500/20 rounded-lg py-2">
+                    <div className="text-xl font-display font-black text-red-400">{shallowCount}</div>
+                    <div className="text-red-400/70 mt-0.5">Shallow</div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-card border border-border rounded-xl p-4">
@@ -420,25 +619,19 @@ export default function Workout() {
               </div>
               <div className="bg-card border border-border rounded-xl p-4">
                 <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">Avg / set</p>
-                <p className="text-2xl font-display font-bold">
-                  {sets > 0 ? Math.round((parseInt(manualReps) || 0) / sets) : 0}
-                </p>
+                <p className="text-2xl font-display font-bold">{sets > 0 ? Math.round((parseInt(manualReps) || 0) / sets) : 0}</p>
               </div>
             </div>
 
             <div className="bg-card border border-primary/20 rounded-xl p-4 space-y-2">
-              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">
-                Adjust rep count
-              </label>
+              <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground block">Adjust rep count</label>
               <Input
                 type="number"
                 value={manualReps}
                 onChange={(e) => setManualReps(e.target.value)}
                 className="h-12 text-xl font-display text-center bg-background border-primary/30 focus-visible:border-primary"
               />
-              <p className="text-xs text-muted-foreground font-mono">
-                Camera motion detection may miss reps. Adjust here.
-              </p>
+              <p className="text-xs text-muted-foreground font-mono">Camera detection may miss reps. Adjust here.</p>
             </div>
 
             {saved ? (
@@ -447,12 +640,7 @@ export default function Workout() {
                 <span className="font-mono font-bold">Saved! Redirecting...</span>
               </div>
             ) : (
-              <Button
-                onClick={saveWorkout}
-                disabled={createWorkout.isPending}
-                size="lg"
-                className="w-full h-14 text-lg font-display uppercase tracking-widest bg-primary text-black mt-auto"
-              >
+              <Button onClick={saveWorkout} disabled={createWorkout.isPending} size="lg" className="w-full h-14 text-lg font-display uppercase tracking-widest bg-primary text-black">
                 {createWorkout.isPending ? "Saving..." : "Save Workout"}
               </Button>
             )}
