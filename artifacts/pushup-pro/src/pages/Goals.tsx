@@ -110,6 +110,8 @@ export default function Goals() {
 
   if (!userId) return null;
 
+  const hasAiGoals = !!(goals?.some(g => g.type === "daily") && goals?.some(g => g.type === "weekly"));
+
   return (
     <AppLayout>
       <div className="p-4 pb-24 space-y-6">
@@ -132,14 +134,21 @@ export default function Goals() {
               <span className="bg-card border border-border px-2 py-1 rounded">Daily: {recommendations.dailyGoal} reps</span>
               <span className="bg-card border border-border px-2 py-1 rounded">Weekly: {recommendations.weeklyGoal} reps</span>
             </div>
-            <Button
-              size="sm"
-              onClick={handleAcceptRecommendation}
-              disabled={accepting}
-              className="bg-primary text-primary-foreground text-xs font-mono uppercase tracking-wider"
-            >
-              {accepting ? "Saving..." : "Accept Goals"}
-            </Button>
+            {hasAiGoals ? (
+              <div className="flex items-center gap-2 text-xs font-mono text-primary">
+                <CheckCircle className="w-3.5 h-3.5" />
+                Goals accepted
+              </div>
+            ) : (
+              <Button
+                size="sm"
+                onClick={handleAcceptRecommendation}
+                disabled={accepting}
+                className="bg-primary text-primary-foreground text-xs font-mono uppercase tracking-wider"
+              >
+                {accepting ? "Saving..." : "Accept Goals"}
+              </Button>
+            )}
           </div>
         )}
 

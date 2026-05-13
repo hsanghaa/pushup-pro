@@ -14,6 +14,7 @@ import Badges from "@/pages/Badges";
 import Library from "@/pages/Library";
 import Profile from "@/pages/Profile";
 import Records from "@/pages/Records";
+import ChallengeInvite from "@/pages/ChallengeInvite";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ function Router() {
       <Route path="/library" component={Library} />
       <Route path="/profile" component={Profile} />
       <Route path="/records" component={Records} />
+      <Route path="/challenge" component={ChallengeInvite} />
       <Route component={NotFound} />
     </Switch>
   );

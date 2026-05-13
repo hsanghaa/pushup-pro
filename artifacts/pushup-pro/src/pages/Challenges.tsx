@@ -18,7 +18,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Trophy, Users, Zap, Crown, UserPlus, Trash2, Flame, ChevronDown, ChevronUp, Gift, Copy, Check, MapPin, Star } from "lucide-react";
+import { Trophy, Users, Zap, Crown, UserPlus, Trash2, Flame, ChevronDown, ChevronUp, Gift, Copy, Check, MapPin, Star, Share2 } from "lucide-react";
 import { speakRivalGenerated } from "@/lib/rivalVoice";
 
 interface PartnerStudio {
@@ -39,6 +39,8 @@ const PARTNER_STUDIOS: PartnerStudio[] = [
   { id: "orangetheory", name: "Orangetheory", type: "HIIT", emoji: "🔥", tagline: "Science-backed heart-rate interval training.", normalPrice: 28, offers: { platinum: "FREE first class ($28 value)", gold: "75% off — pay $7", silver: "50% off — pay $14" }, accent: "border-orange-500/40 bg-orange-500/5" },
   { id: "barrys", name: "Barry's", type: "Bootcamp", emoji: "💪", tagline: "The original bootcamp class. Treadmill + weights.", normalPrice: 38, offers: { platinum: "FREE class ($38 value)", gold: "75% off — pay $10", silver: "50% off — pay $19" }, accent: "border-red-500/40 bg-red-500/5" },
   { id: "barre3", name: "barre3", type: "Barre", emoji: "🩰", tagline: "Balance of strength, cardio, and mindfulness.", normalPrice: 25, offers: { platinum: "FREE drop-in ($25 value)", gold: "75% off — pay $6", silver: "50% off — pay $13" }, accent: "border-purple-500/40 bg-purple-500/5" },
+  { id: "boosterjuice", name: "Booster Juice", type: "Smoothie", emoji: "🥤", tagline: "Fresh smoothies and healthy boosts post-workout.", normalPrice: 12, offers: { platinum: "FREE smoothie ($12 value)", gold: "FREE smoothie ($12 value)", silver: "50% off any smoothie" }, accent: "border-orange-400/40 bg-orange-400/5" },
+  { id: "jugojuice", name: "Jugo Juice", type: "Juice Bar", emoji: "🍊", tagline: "Premium cold-pressed juices and protein shakes.", normalPrice: 11, offers: { platinum: "FREE juice or shake ($11 value)", gold: "FREE juice or shake ($11 value)", silver: "Buy 1 get 1 50% off" }, accent: "border-amber-400/40 bg-amber-400/5" },
 ];
 
 const TIER_CONFIG = {
@@ -107,6 +109,7 @@ export default function Challenges() {
   const [selectedStyle, setSelectedStyle] = useState("random");
   const [claimedCoupons, setClaimedCoupons] = useState<Record<string, string>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [sharedLink, setSharedLink] = useState(false);
 
   const { data: challenge, isLoading: challengeLoading } = useGetCurrentChallenge();
   const { data: leaderboard, isLoading: lbLoading } = useGetChallengeLeaderboard();
@@ -447,6 +450,38 @@ export default function Challenges() {
                 })}
               </>
             )}
+
+            {/* Challenge a Friend */}
+            <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Share2 className="w-4 h-4 text-primary" />
+                <span className="text-xs font-bold uppercase tracking-wider text-primary">Challenge a Friend</span>
+              </div>
+              <p className="text-xs font-mono text-muted-foreground leading-relaxed">
+                Send a battle invite link. They'll see your challenge and can join PushUp Pro to compete against you.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full text-xs font-bold uppercase tracking-wider"
+                onClick={() => {
+                  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+                  const link = `${window.location.origin}${base}/challenge?from=${userId}`;
+                  if (navigator.share) {
+                    navigator.share({ title: "PushUp Pro Challenge", text: "I'm challenging you to a push-up battle!", url: link }).catch(() => {});
+                  } else {
+                    navigator.clipboard.writeText(link);
+                    setSharedLink(true);
+                    setTimeout(() => setSharedLink(false), 2500);
+                  }
+                }}
+              >
+                {sharedLink
+                  ? <><Check className="w-3.5 h-3.5 mr-1.5 text-green-400" /> Link copied!</>
+                  : <><Share2 className="w-3.5 h-3.5 mr-1.5" /> Share Challenge Link</>
+                }
+              </Button>
+            </div>
           </div>
         )}
 

@@ -159,6 +159,8 @@ export default function Workout() {
   const DIRECTION_COOLDOWN_MS = 500;
   // Track which rep milestones already had rival speech fired
   const spokenMilestonesRef = useRef<Set<number>>(new Set());
+  // Short-term luminance trend: last 6 frames for sustained-direction detection
+  const lumTrendRef = useRef<number[]>([]);
 
   // Form tracking refs
   const peakLumRef = useRef<number>(0);  // highest lum in current direction
@@ -229,10 +231,10 @@ export default function Workout() {
     const sh = video.videoHeight;
     if (!sw || !sh) return;
 
-    // Sample central body region
+    // Sample upper body / face region — where head moves during front-facing push-ups
     canvas.width = 16;
     canvas.height = 16;
-    ctx.drawImage(video, sw * 0.25, sh * 0.35, sw * 0.5, sh * 0.4, 0, 0, 16, 16);
+    ctx.drawImage(video, sw * 0.1, sh * 0.05, sw * 0.8, sh * 0.5, 0, 0, 16, 16);
 
     const data = ctx.getImageData(0, 0, 16, 16).data;
     let lum = 0;
@@ -257,9 +259,20 @@ export default function Workout() {
     // Update depth bar at every frame (cheap state update)
     setFormState((prev) => ({ ...prev, depthPct }));
 
+    // Sustained-direction trend: require consistent movement across 3 frames
+    // before registering a direction change. This filters out single-frame
+    // noise (people walking by, light flicker, casual fidgeting).
+    lumTrendRef.current.push(lum);
+    if (lumTrendRef.current.length > 6) lumTrendRef.current.shift();
+    const tLen = lumTrendRef.current.length;
+    // Compare current lum to 3 frames ago — requires ~300ms of sustained motion
+    const TREND_THRESHOLD = 5;
+    const trendDelta = tLen >= 3 ? lumTrendRef.current[tLen - 1]! - lumTrendRef.current[tLen - 3]! : 0;
+    const isGoingDown = trendDelta < -TREND_THRESHOLD;
+    const isGoingUp   = trendDelta > TREND_THRESHOLD;
+
     // Rep detection
     if (lastLumRef.current !== null) {
-      const diff = Math.abs(lum - lastLumRef.current);
       const now = Date.now();
 
       // Track peak/trough for amplitude measurement
@@ -269,16 +282,15 @@ export default function Workout() {
         peakLumRef.current = Math.max(peakLumRef.current, lum);
       }
 
-      // Only allow a direction flip once every DIRECTION_COOLDOWN_MS to avoid
-      // counting one motion as multiple reps due to frame-to-frame noise.
-      if (diff > 5 && now - lastDirectionChangeRef.current > DIRECTION_COOLDOWN_MS) {
+      // Only allow a direction flip once per cooldown window.
+      if ((isGoingDown || isGoingUp) && now - lastDirectionChangeRef.current > DIRECTION_COOLDOWN_MS) {
         lastDirectionChangeRef.current = now;
-        if (repStateRef.current === "up") {
+        if (isGoingDown && repStateRef.current === "up") {
           // Start going down
           repStateRef.current = "down";
           troughLumRef.current = lum;
           repStartTimeRef.current = now;
-        } else {
+        } else if (isGoingUp && repStateRef.current === "down") {
           // Coming back up — rep complete
           repStateRef.current = "up";
           peakLumRef.current = lum;
@@ -363,6 +375,7 @@ export default function Workout() {
     lastLumRef.current = null;
     lastDirectionChangeRef.current = 0;
     spokenMilestonesRef.current = new Set();
+    lumTrendRef.current = [];
     peakLumRef.current = 0;
     troughLumRef.current = 255;
     repStartTimeRef.current = 0;
@@ -464,10 +477,24 @@ export default function Workout() {
               {cameraStatus === "ready" && (
                 <><CheckCircle className="w-4 h-4 text-primary shrink-0" /><span className="text-sm font-mono text-primary">Camera ready — form scoring active.</span></>
               )}
-              {cameraStatus === "error" && (
-                <><AlertCircle className="w-4 h-4 text-red-400 shrink-0" /><span className="text-sm font-mono text-red-300">No camera. Count reps manually after session.</span></>
-              )}
             </div>
+
+            {cameraStatus === "ready" && (
+              <div className="bg-black/60 backdrop-blur-sm border border-white/10 rounded-xl p-3 space-y-1.5">
+                <p className="text-xs font-bold uppercase tracking-wider text-white/50">Position tip</p>
+                <p className="text-xs text-white/70 leading-relaxed">
+                  <strong className="text-white">Front view:</strong> prop your phone at chest height and face the camera as you push up. Your head moving toward and away from the lens drives the counter.
+                </p>
+                <p className="text-xs text-white/70 leading-relaxed">
+                  <strong className="text-white">Side view:</strong> lay your phone on the floor to the side — your torso rising and falling is the most reliable signal.
+                </p>
+              </div>
+            )}
+            {cameraStatus === "error" && (
+              <div className="bg-black/60 backdrop-blur-sm border border-white/10 rounded-xl p-3 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0" /><span className="text-sm font-mono text-red-300">No camera. Count reps manually after session.</span>
+              </div>
+            )}
 
             <div className="space-y-3 bg-black/60 backdrop-blur-sm border border-white/10 rounded-xl p-4">
               <div>
