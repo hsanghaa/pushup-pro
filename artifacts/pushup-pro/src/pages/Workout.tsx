@@ -146,6 +146,9 @@ export default function Workout() {
   const lastLumRef = useRef<number | null>(null);
   const repStateRef = useRef<"up" | "down">("up");
   const repsRef = useRef(0);
+  // Cooldown: prevent direction flip more than once per 500ms
+  const lastDirectionChangeRef = useRef<number>(0);
+  const DIRECTION_COOLDOWN_MS = 500;
 
   // Form tracking refs
   const peakLumRef = useRef<number>(0);  // highest lum in current direction
@@ -247,6 +250,7 @@ export default function Workout() {
     // Rep detection
     if (lastLumRef.current !== null) {
       const diff = Math.abs(lum - lastLumRef.current);
+      const now = Date.now();
 
       // Track peak/trough for amplitude measurement
       if (repStateRef.current === "down") {
@@ -255,12 +259,15 @@ export default function Workout() {
         peakLumRef.current = Math.max(peakLumRef.current, lum);
       }
 
-      if (diff > 5) {
+      // Only allow a direction flip once every DIRECTION_COOLDOWN_MS to avoid
+      // counting one motion as multiple reps due to frame-to-frame noise.
+      if (diff > 5 && now - lastDirectionChangeRef.current > DIRECTION_COOLDOWN_MS) {
+        lastDirectionChangeRef.current = now;
         if (repStateRef.current === "up") {
           // Start going down
           repStateRef.current = "down";
           troughLumRef.current = lum;
-          repStartTimeRef.current = Date.now();
+          repStartTimeRef.current = now;
         } else {
           // Coming back up — rep complete
           repStateRef.current = "up";
@@ -324,6 +331,7 @@ export default function Workout() {
     repsRef.current = 0;
     repStateRef.current = "up";
     lastLumRef.current = null;
+    lastDirectionChangeRef.current = 0;
     peakLumRef.current = 0;
     troughLumRef.current = 255;
     repStartTimeRef.current = 0;

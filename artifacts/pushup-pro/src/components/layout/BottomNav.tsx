@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Home, Trophy, Target, BookOpen, User } from "lucide-react";
+import { Home, Trophy, Target, Medal, User } from "lucide-react";
 
 export function BottomNav() {
   const [location] = useLocation();
@@ -8,7 +8,7 @@ export function BottomNav() {
     { href: "/dashboard", icon: Home, label: "Home" },
     { href: "/goals", icon: Target, label: "Goals" },
     { href: "/challenges", icon: Trophy, label: "Compete" },
-    { href: "/library", icon: BookOpen, label: "Library" },
+    { href: "/records", icon: Medal, label: "Records" },
     { href: "/profile", icon: User, label: "Profile" },
   ];
 
