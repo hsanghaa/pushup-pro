@@ -1,5 +1,6 @@
 import { useState as useReactState } from "react";
 import { useLocation } from "wouter";
+import { useAuth } from "@clerk/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -12,6 +13,7 @@ const DAYS = [1, 2, 3, 4, 5, 6, 7];
 
 export default function Onboarding() {
   const [, setLocation] = useLocation();
+  const { userId: clerkUserId } = useAuth();
   const [step, setStep] = useReactState(1);
   const [name, setName] = useReactState("");
   const [fitnessLevel, setFitnessLevel] = useReactState<UserInputFitnessLevel>("beginner");
@@ -24,6 +26,7 @@ export default function Onboarding() {
   const handleComplete = () => {
     createUser.mutate({
       data: {
+        ...(clerkUserId ? { clerkId: clerkUserId } : {}),
         name,
         fitnessLevel,
         currentMaxPushups: parseInt(maxPushups, 10),

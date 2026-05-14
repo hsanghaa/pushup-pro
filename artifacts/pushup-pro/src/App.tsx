@@ -1,10 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Switch, Route, useLocation, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ClerkProvider, SignIn, SignUp, useClerk, useAuth, RedirectToSignIn } from "@clerk/react";
 import { shadcn } from "@clerk/themes";
+
+import { getUserId, setUserId } from "@/lib/auth";
 
 import Home from "@/pages/Home";
 import Onboarding from "@/pages/Onboarding";
@@ -83,7 +85,15 @@ const clerkAppearance = {
   },
 };
 
+const GUEST_KEY = "pushupProGuestMode";
+
+function continueAsGuest(setLocation: (path: string) => void) {
+  localStorage.setItem(GUEST_KEY, "true");
+  setLocation("/onboarding");
+}
+
 function AuthPageShell({ children }: { children: React.ReactNode }) {
+  const [, setLocation] = useLocation();
   return (
     <div className="flex min-h-[100dvh] flex-col bg-background">
       <div className="flex flex-col items-center gap-1 px-6 pb-6 pt-16 sm:hidden">
@@ -95,6 +105,20 @@ function AuthPageShell({ children }: { children: React.ReactNode }) {
       </div>
       <div className="flex flex-1 flex-col sm:min-h-[100dvh] sm:items-center sm:justify-center sm:px-4">
         {children}
+        <div className="w-full sm:w-[440px] px-6 pb-8 sm:px-0 sm:pb-0 sm:mt-4 text-center">
+          <div className="flex items-center gap-3 my-4">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs text-muted-foreground uppercase tracking-wider">or</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+          <button
+            onClick={() => continueAsGuest(setLocation)}
+            className="w-full py-3 rounded-xl border border-border text-sm font-medium text-muted-foreground hover:border-primary/50 hover:text-foreground transition-colors"
+          >
+            Continue as Guest
+          </button>
+          <p className="text-xs text-muted-foreground mt-2">Guest progress is saved on this device only</p>
+        </div>
       </div>
     </div>
   );
@@ -143,24 +167,48 @@ function ClerkQueryClientCacheInvalidator() {
   return null;
 }
 
-const devAuthBypass = import.meta.env.VITE_DEV_AUTH_BYPASS === "true";
+function Spinner() {
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center bg-background">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
+  );
+}
 
 function ProtectedRoutes() {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, userId: clerkUserId } = useAuth();
+  const [, setLocation] = useLocation();
+  const [syncing, setSyncing] = useState(false);
+  const [syncedForClerkId, setSyncedForClerkId] = useState<string | null>(null);
 
-  if (!devAuthBypass) {
-    if (!isLoaded) {
-      return (
-        <div className="flex min-h-[100dvh] items-center justify-center bg-background">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        </div>
-      );
-    }
+  const isGuest = localStorage.getItem(GUEST_KEY) === "true";
+  const hasLocalUserId = getUserId() !== null;
 
-    if (!isSignedIn) {
-      return <RedirectToSignIn />;
-    }
-  }
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !clerkUserId) return;
+    if (isGuest || hasLocalUserId) return;
+    if (syncedForClerkId === clerkUserId) return;
+
+    setSyncing(true);
+    fetch(`${basePath}/api/users/by-clerk/${clerkUserId}`)
+      .then(async (res) => {
+        if (res.ok) {
+          const user = await res.json();
+          setUserId(user.id);
+          setSyncedForClerkId(clerkUserId);
+        } else if (res.status === 404) {
+          setSyncedForClerkId(clerkUserId);
+          setLocation("/onboarding");
+        }
+      })
+      .finally(() => setSyncing(false));
+  }, [isLoaded, isSignedIn, clerkUserId, isGuest, hasLocalUserId, syncedForClerkId, setLocation]);
+
+  if (!isLoaded || syncing) return <Spinner />;
+
+  if (!isGuest && !hasLocalUserId && !isSignedIn) return <RedirectToSignIn />;
+
+  if (isSignedIn && !isGuest && !hasLocalUserId && syncedForClerkId !== clerkUserId) return <Spinner />;
 
   return (
     <Switch>

@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, sql } from "drizzle-orm";
 import { db, usersTable, workoutsTable, goalsTable } from "@workspace/db";
+import { z } from "zod/v4";
 import {
   CreateUserBody,
   GetUserParams,
@@ -11,6 +12,20 @@ import {
 
 const router: IRouter = Router();
 
+router.get("/users/by-clerk/:clerkId", async (req, res): Promise<void> => {
+  const { clerkId } = req.params;
+  if (!clerkId) {
+    res.status(400).json({ error: "clerkId required" });
+    return;
+  }
+  const [user] = await db.select().from(usersTable).where(eq(usersTable.clerkId, clerkId));
+  if (!user) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  res.json(user);
+});
+
 router.post("/users", async (req, res): Promise<void> => {
   const parsed = CreateUserBody.safeParse(req.body);
   if (!parsed.success) {
@@ -19,6 +34,7 @@ router.post("/users", async (req, res): Promise<void> => {
   }
 
   const [user] = await db.insert(usersTable).values({
+    clerkId: parsed.data.clerkId ?? null,
     name: parsed.data.name,
     fitnessLevel: parsed.data.fitnessLevel,
     currentMaxPushups: parsed.data.currentMaxPushups,

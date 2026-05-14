@@ -64,6 +64,8 @@ export const UserInputMainGoal = {
 } as const;
 
 export interface UserInput {
+  /** Clerk identity ID to link this profile to a login */
+  clerkId?: string;
   /** @minLength 1 */
   name: string;
   fitnessLevel: UserInputFitnessLevel;

@@ -61,6 +61,27 @@ paths:
               schema:
                 $ref: "#/components/schemas/User"
 
+  /users/by-clerk/{clerkId}:
+    get:
+      operationId: getUserByClerkId
+      tags: [users]
+      summary: Look up a user by their Clerk identity ID
+      parameters:
+        - name: clerkId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "404":
+          description: Not found
+
   /users/{userId}:
     get:
       operationId: getUser
@@ -509,6 +530,9 @@ components:
       type: object
       required: [name, fitnessLevel, currentMaxPushups, mainGoal]
       properties:
+        clerkId:
+          type: string
+          description: Clerk identity ID to link this profile to a login
         name:
           type: string
           minLength: 1

@@ -212,6 +212,94 @@ export const useCreateUser = <
 };
 
 /**
+ * @summary Look up a user by their Clerk identity ID
+ */
+export const getGetUserByClerkIdUrl = (clerkId: string) => {
+  return `/api/users/by-clerk/${clerkId}`;
+};
+
+export const getUserByClerkId = async (
+  clerkId: string,
+  options?: RequestInit,
+): Promise<User> => {
+  return customFetch<User>(getGetUserByClerkIdUrl(clerkId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetUserByClerkIdQueryKey = (clerkId: string) => {
+  return [`/api/users/by-clerk/${clerkId}`] as const;
+};
+
+export const getGetUserByClerkIdQueryOptions = <
+  TData = Awaited<ReturnType<typeof getUserByClerkId>>,
+  TError = ErrorType<void>,
+>(
+  clerkId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getUserByClerkId>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetUserByClerkIdQueryKey(clerkId);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getUserByClerkId>>
+  > = ({ signal }) => getUserByClerkId(clerkId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!clerkId,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getUserByClerkId>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetUserByClerkIdQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getUserByClerkId>>
+>;
+export type GetUserByClerkIdQueryError = ErrorType<void>;
+
+/**
+ * @summary Look up a user by their Clerk identity ID
+ */
+
+export function useGetUserByClerkId<
+  TData = Awaited<ReturnType<typeof getUserByClerkId>>,
+  TError = ErrorType<void>,
+>(
+  clerkId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getUserByClerkId>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetUserByClerkIdQueryOptions(clerkId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
  * @summary Get user profile
  */
 export const getGetUserUrl = (userId: number) => {

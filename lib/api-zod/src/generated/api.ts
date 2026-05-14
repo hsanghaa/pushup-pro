@@ -24,6 +24,10 @@ export const createUserBodyCurrentMaxPushupsMin = 0;
 export const createUserBodyWeeklyAvailabilityDaysMax = 7;
 
 export const CreateUserBody = zod.object({
+  clerkId: zod
+    .string()
+    .optional()
+    .describe("Clerk identity ID to link this profile to a login"),
   name: zod.string().min(1),
   fitnessLevel: zod.enum(["beginner", "intermediate", "advanced", "athlete"]),
   currentMaxPushups: zod.number().min(createUserBodyCurrentMaxPushupsMin),
@@ -42,6 +46,31 @@ export const CreateUserBody = zod.object({
   reminderPreference: zod.string().optional(),
   wantsAiGoals: zod.boolean().optional(),
   wantsCompetition: zod.boolean().optional(),
+});
+
+/**
+ * @summary Look up a user by their Clerk identity ID
+ */
+export const GetUserByClerkIdParams = zod.object({
+  clerkId: zod.coerce.string(),
+});
+
+export const GetUserByClerkIdResponse = zod.object({
+  id: zod.number(),
+  name: zod.string(),
+  fitnessLevel: zod.enum(["beginner", "intermediate", "advanced", "athlete"]),
+  currentMaxPushups: zod.number(),
+  mainGoal: zod.enum([
+    "build_strength",
+    "improve_consistency",
+    "hit_100_daily",
+    "compete_friends",
+    "train_like_athlete",
+  ]),
+  reminderPreference: zod.string().nullish(),
+  wantsAiGoals: zod.boolean().optional(),
+  wantsCompetition: zod.boolean().optional(),
+  createdAt: zod.coerce.date(),
 });
 
 /**
