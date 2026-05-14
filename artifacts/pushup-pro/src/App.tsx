@@ -6,7 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ClerkProvider, SignIn, SignUp, useClerk, useAuth, RedirectToSignIn } from "@clerk/react";
 import { shadcn } from "@clerk/themes";
 
-import { getUserId, setUserId } from "@/lib/auth";
+import { setUserId, clearUserId } from "@/lib/auth";
 
 import Home from "@/pages/Home";
 import Onboarding from "@/pages/Onboarding";
@@ -175,44 +175,67 @@ function Spinner() {
   );
 }
 
+function DashboardRedirect() {
+  const [, setLocation] = useLocation();
+  useEffect(() => { setLocation("/dashboard"); }, [setLocation]);
+  return <Spinner />;
+}
+
 function ProtectedRoutes() {
   const { isLoaded, isSignedIn, userId: clerkUserId } = useAuth();
   const [, setLocation] = useLocation();
   const [syncing, setSyncing] = useState(false);
-  const [syncedForClerkId, setSyncedForClerkId] = useState<string | null>(null);
+  const [syncDone, setSyncDone] = useState(false);
+  const syncedRef = useRef<string | null>(null);
 
   const isGuest = localStorage.getItem(GUEST_KEY) === "true";
-  const hasLocalUserId = getUserId() !== null;
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn || !clerkUserId) return;
-    if (isGuest || hasLocalUserId) return;
-    if (syncedForClerkId === clerkUserId) return;
+    if (!isLoaded) return;
 
+    // Guest mode — clear any stale Clerk-linked userId, proceed as guest
+    if (isGuest) {
+      setSyncDone(true);
+      return;
+    }
+
+    // Not signed in — clear any stale data
+    if (!isSignedIn || !clerkUserId) {
+      clearUserId();
+      return;
+    }
+
+    // Already synced this session
+    if (syncedRef.current === clerkUserId) return;
+
+    // Always re-sync from DB on every Clerk sign-in
+    clearUserId();
     setSyncing(true);
+    setSyncDone(false);
     fetch(`${basePath}/api/users/by-clerk/${clerkUserId}`)
       .then(async (res) => {
         if (res.ok) {
           const user = await res.json();
           setUserId(user.id);
-          setSyncedForClerkId(clerkUserId);
+          syncedRef.current = clerkUserId;
+          setSyncDone(true);
+          setLocation("/dashboard");   // existing user → skip splash, go straight to app
         } else if (res.status === 404) {
-          setSyncedForClerkId(clerkUserId);
-          setLocation("/onboarding");
+          syncedRef.current = clerkUserId;
+          setSyncDone(true);
+          setLocation("/onboarding");  // new user → setup profile
         }
       })
       .finally(() => setSyncing(false));
-  }, [isLoaded, isSignedIn, clerkUserId, isGuest, hasLocalUserId, syncedForClerkId, setLocation]);
+  }, [isLoaded, isSignedIn, clerkUserId, isGuest, setLocation]);
 
   if (!isLoaded || syncing) return <Spinner />;
-
-  if (!isGuest && !hasLocalUserId && !isSignedIn) return <RedirectToSignIn />;
-
-  if (isSignedIn && !isGuest && !hasLocalUserId && syncedForClerkId !== clerkUserId) return <Spinner />;
+  if (!isGuest && !isSignedIn) return <RedirectToSignIn />;
+  if (isSignedIn && !isGuest && !syncDone) return <Spinner />;
 
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path="/" component={DashboardRedirect} />
       <Route path="/onboarding" component={Onboarding} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/workout" component={Workout} />
