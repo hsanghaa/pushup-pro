@@ -56,7 +56,7 @@ const clerkAppearance = {
   },
   elements: {
     rootBox: "w-full flex justify-center",
-    cardBox: "bg-[hsl(220,18%,10%)] border border-[hsl(215,20%,20%)] rounded-2xl w-[440px] max-w-full overflow-hidden shadow-2xl",
+    cardBox: "bg-[hsl(220,18%,10%)] !rounded-none w-full overflow-hidden sm:!rounded-2xl sm:border sm:border-[hsl(215,20%,20%)] sm:w-[440px] sm:shadow-2xl",
     card: "!shadow-none !border-0 !bg-transparent !rounded-none",
     footer: "!shadow-none !border-0 !bg-transparent !rounded-none",
     headerTitle: "text-[hsl(210,40%,96%)] font-bold",
@@ -83,27 +83,44 @@ const clerkAppearance = {
   },
 };
 
+function AuthPageShell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex min-h-[100dvh] flex-col bg-background">
+      <div className="flex flex-col items-center gap-1 px-6 pb-6 pt-16 sm:hidden">
+        <img src={`${basePath}/logo.svg`} alt="PushUp Pro" className="h-14 w-14 mb-2" />
+        <h1 className="text-2xl font-bold tracking-tight text-foreground" style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif" }}>
+          PUSHUP <span style={{ color: "hsl(195 100% 50%)" }}>PRO</span>
+        </h1>
+        <p className="text-sm text-muted-foreground">The camera-powered coach that counts every rep.</p>
+      </div>
+      <div className="flex flex-1 flex-col sm:min-h-[100dvh] sm:items-center sm:justify-center sm:px-4">
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function SignInPage() {
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
+    <AuthPageShell>
       <SignIn
         routing="path"
         path={`${basePath}/sign-in`}
         signUpUrl={`${basePath}/sign-up`}
       />
-    </div>
+    </AuthPageShell>
   );
 }
 
 function SignUpPage() {
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-4">
+    <AuthPageShell>
       <SignUp
         routing="path"
         path={`${basePath}/sign-up`}
         signInUrl={`${basePath}/sign-in`}
       />
-    </div>
+    </AuthPageShell>
   );
 }
 
