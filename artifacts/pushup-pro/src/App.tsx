@@ -126,19 +126,23 @@ function ClerkQueryClientCacheInvalidator() {
   return null;
 }
 
+const devAuthBypass = import.meta.env.VITE_DEV_AUTH_BYPASS === "true";
+
 function ProtectedRoutes() {
   const { isLoaded, isSignedIn } = useAuth();
 
-  if (!isLoaded) {
-    return (
-      <div className="flex min-h-[100dvh] items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    );
-  }
+  if (!devAuthBypass) {
+    if (!isLoaded) {
+      return (
+        <div className="flex min-h-[100dvh] items-center justify-center bg-background">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        </div>
+      );
+    }
 
-  if (!isSignedIn) {
-    return <RedirectToSignIn />;
+    if (!isSignedIn) {
+      return <RedirectToSignIn />;
+    }
   }
 
   return (
