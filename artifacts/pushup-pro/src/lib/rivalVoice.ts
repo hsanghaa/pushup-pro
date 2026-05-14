@@ -1,69 +1,69 @@
 const TRASH_TALK: Record<string, string[]> = {
   machine: [
-    "Let's make this interesting. I haven't skipped a single day in months.",
-    "Nice to meet you. Fair warning — I don't lose.",
-    "I've been training while you were sleeping. Let's see what you've got.",
+    "Hey, I'm glad you're here. Just know — I haven't missed a single day in months.",
+    "Welcome. Fair warning though — I take this seriously.",
+    "Good to meet you. I've been training while most people sleep. Let's see what you've got.",
   ],
   grinder: [
-    "Volume beats talent every time. Show me your volume.",
-    "I did a hundred reps before breakfast. Just warming up.",
-    "Hope you brought your work ethic. I brought mine.",
+    "Volume is everything. Show me you can keep up.",
+    "I did a hundred reps before breakfast. I'm just getting started.",
+    "Hope you brought your work ethic today. I always bring mine.",
   ],
   competitor: [
-    "I already looked up your stats. I'm not impressed... yet.",
-    "I adapt to whoever I compete with. You should be a little worried.",
+    "I already looked at your numbers. I'm not worried — yet.",
+    "I adapt to whoever I'm up against. You might want to train a little harder.",
     "Your move. I'll be watching.",
   ],
   comeback_kid: [
-    "I take days off so I can come back twice as hard. Watch what happens next.",
-    "You think a streak matters? I peak when it actually counts.",
-    "Rest is part of my plan. What's your plan?",
+    "I take rest days so I can come back twice as strong. Watch what happens.",
+    "A streak? That's cute. I peak when it actually matters.",
+    "Rest is part of my plan. Do you even have a plan?",
   ],
   underdog: [
-    "You're supposed to be better than me. Prove it.",
-    "I've got nothing to lose. That makes me dangerous.",
-    "Everyone underestimates me. That's always their mistake.",
+    "You're supposed to be better than me. Go ahead and prove it.",
+    "I've got nothing to lose. That actually makes me pretty dangerous.",
+    "Everyone underestimates me. That tends to be their mistake.",
   ],
   consistent: [
-    "Consistency beats intensity. Ask me how I know.",
-    "I show up every single day. Do you?",
-    "Five days a week, no exceptions. Ready to match that?",
+    "Consistency beats intensity — I've got the data to prove it.",
+    "I show up every single day, no exceptions. Can you say the same?",
+    "Five days a week, every week. Ready to match that?",
   ],
   weekend_warrior: [
-    "I save my best for when it matters. The weekend's coming.",
-    "Don't count me out. I go really hard when I go.",
-    "Save your strength. You'll need it when I peak.",
+    "I save my best for when it actually counts. The weekend is coming.",
+    "Don't write me off. When I go, I really go.",
+    "Save your energy. You'll need it when I hit my stride.",
   ],
 };
 
 const WORKOUT_TAUNTS: Record<number, string[]> = {
-  5:  ["Five reps? I warm up with fifty.", "That's a start. Keep going.", "Five down. How many more you got?"],
-  10: ["Ten reps. I did that before I got out of bed.", "Double digits. Not bad... for now.", "Ten. I'm barely paying attention yet."],
-  15: ["Fifteen. Getting warmer.", "Not bad. But not good enough yet.", "Fifteen reps. I feel a threat coming on."],
-  20: ["Twenty reps. Now you're starting to impress me. A little.", "Twenty. Okay. Keep that up.", "Nice — twenty. Don't stop now."],
-  25: ["Twenty-five. That's a quarter of my warm-up.", "You've got some fire in you. Show me more.", "Twenty-five. Respect. Now push harder."],
-  30: ["Thirty reps. Okay. Now we're actually competing.", "Thirty strong. I might have to take this seriously.", "Thirty. You're not going to quit now, are you?"],
-  40: ["Forty reps. I'm starting to sweat a little. A little.", "Forty. My kind of rival. Don't slow down.", "Forty reps — that's elite territory. Keep it there."],
-  50: ["Fifty reps. That is seriously impressive. Well done.", "Half a century of push-ups. I respect that.", "Fifty. Okay. You've earned some respect today."],
-  75: ["Seventy-five. You're an animal. Absolutely relentless.", "Seventy-five reps? I might need to train harder.", "Seventy-five. I didn't think you had it. I was wrong."],
-  100: ["One hundred reps. That is legendary. I bow to you.", "A hundred push-ups. You are an absolute machine.", "One hundred. I have no more trash talk. You've won today."],
+  5:  ["Five reps. That's a start — keep going.", "Alright, five down. Let's see how many more you've got.", "Five. Not bad for a warm-up."],
+  10: ["Ten reps. Now we're talking.", "Double digits. You're just getting started.", "Ten down. I like the energy — don't stop now."],
+  15: ["Fifteen. You're finding your rhythm.", "Not bad at all. Keep that pace going.", "Fifteen reps. I'm starting to pay attention."],
+  20: ["Twenty reps. Now you're actually impressing me.", "Twenty. Okay — keep that up and we have a real competition.", "Nice work — twenty. Don't slow down now."],
+  25: ["Twenty five. You've got some fire in you.", "Twenty five reps. Show me more of that.", "That's twenty five. Respect. Now push harder."],
+  30: ["Thirty reps. Now we're actually competing.", "Thirty strong. I might need to take this seriously.", "Thirty. You're not going to quit on me now, are you?"],
+  40: ["Forty reps. Okay — I'm impressed. Keep going.", "Forty. My kind of competitor. Don't slow down.", "Forty reps — that's serious work. Stay with it."],
+  50: ["Fifty reps. That is genuinely impressive. Well done.", "Half a century of push-ups. I respect that.", "Fifty. You've earned some real respect today."],
+  75: ["Seventy five. You are absolutely relentless.", "Seventy five reps? I may need to step up my training.", "Seventy five. I underestimated you. I won't make that mistake again."],
+  100: ["One hundred reps. That is legendary. I have nothing but respect for you.", "A hundred push-ups. You are a machine. Well done.", "One hundred. I'm out of trash talk. You won today."],
 };
 
 // Voice priority: most natural-sounding first
 const VOICE_PRIORITY_PATTERNS = [
-  // Google neural (best quality in Chrome)
   "Google US English",
-  // Microsoft neural online voices (Edge / Windows)
-  "Microsoft Aria Online",
-  "Microsoft Guy Online",
-  "Microsoft Jenny Online",
-  "Microsoft Davis Online",
-  "Microsoft Ana Online",
-  // Any Microsoft English
+  "Microsoft Aria Online (Natural)",
+  "Microsoft Jenny Online (Natural)",
+  "Microsoft Guy Online (Natural)",
+  "Microsoft Davis Online (Natural)",
+  "Microsoft Ana Online (Natural)",
+  "Aria",
+  "Jenny",
+  "Microsoft Aria",
+  "Microsoft Jenny",
+  "Microsoft Guy",
   "Microsoft",
-  // Any Google English
   "Google",
-  // Fallback: anything en-US
   "en-US",
   "en_US",
 ];
@@ -78,24 +78,27 @@ function pickVoice(): SpeechSynthesisVoice | null {
   if (!voices.length) return null;
 
   for (const pattern of VOICE_PRIORITY_PATTERNS) {
-    const match = voices.find(v => v.name.includes(pattern) || v.lang.includes(pattern));
+    const match = voices.find(v => v.name.includes(pattern));
     if (match) { _voiceCache = match; return match; }
   }
+  // Prefer online/network voices as they tend to be higher quality
+  const onlineVoice = voices.find(v => !v.localService);
+  if (onlineVoice) { _voiceCache = onlineVoice; return onlineVoice; }
   _voiceCache = voices[0] ?? null;
   return _voiceCache;
 }
 
-// Subtle personality tweaks — small deviations keep things natural-sounding
+// Natural-sounding params — all close to baseline for clarity
 function getVoiceParams(personality: string): { pitch: number; rate: number } {
   switch (personality) {
-    case "machine":        return { pitch: 0.92, rate: 0.88 };
-    case "grinder":        return { pitch: 1.04, rate: 1.05 };
-    case "competitor":     return { pitch: 0.97, rate: 0.94 };
-    case "comeback_kid":   return { pitch: 1.02, rate: 0.98 };
-    case "underdog":       return { pitch: 1.05, rate: 1.0  };
-    case "consistent":     return { pitch: 0.95, rate: 0.96 };
-    case "weekend_warrior":return { pitch: 1.03, rate: 1.04 };
-    default:               return { pitch: 1.0,  rate: 1.0  };
+    case "machine":         return { pitch: 0.95, rate: 0.90 };
+    case "grinder":         return { pitch: 1.02, rate: 1.00 };
+    case "competitor":      return { pitch: 0.98, rate: 0.93 };
+    case "comeback_kid":    return { pitch: 1.01, rate: 0.97 };
+    case "underdog":        return { pitch: 1.03, rate: 1.00 };
+    case "consistent":      return { pitch: 0.97, rate: 0.95 };
+    case "weekend_warrior": return { pitch: 1.01, rate: 1.02 };
+    default:                return { pitch: 1.0,  rate: 1.0  };
   }
 }
 
@@ -109,19 +112,17 @@ function speakLine(text: string, personality: string): void {
   const { pitch, rate } = getVoiceParams(personality);
   utterance.pitch = pitch;
   utterance.rate  = rate;
-  utterance.volume = 0.92;
+  utterance.volume = 0.95;
 
-  // If voices hadn't loaded yet, clear cache so next call re-selects
   utterance.onerror = () => { _voiceCache = undefined; };
-
   window.speechSynthesis.speak(utterance);
 }
 
-// Warm-up: trigger voice list load on module import so it's ready by first use
+// Warm-up: load voice list on module import
 if (typeof window !== "undefined" && "speechSynthesis" in window) {
   window.speechSynthesis.getVoices();
   window.speechSynthesis.onvoiceschanged = () => {
-    _voiceCache = undefined; // clear so next speakLine re-selects with full list
+    _voiceCache = undefined;
   };
 }
 
@@ -129,7 +130,7 @@ export function speakRivalGenerated(personality: string, name: string): void {
   if (!("speechSynthesis" in window)) return;
   const lines = TRASH_TALK[personality] ?? TRASH_TALK["competitor"]!;
   const line = lines[Math.floor(Math.random() * lines.length)]!;
-  speakLine(`${name.split(" ")[0]} says: ${line}`, personality);
+  speakLine(line, personality);
 }
 
 export function speakWorkoutTaunt(reps: number, personality: string, rivalName: string): void {
@@ -137,5 +138,5 @@ export function speakWorkoutTaunt(reps: number, personality: string, rivalName: 
   const lines = WORKOUT_TAUNTS[reps];
   if (!lines) return;
   const line = lines[Math.floor(Math.random() * lines.length)]!;
-  speakLine(`${rivalName.split(" ")[0]}: ${line}`, personality);
+  speakLine(line, personality);
 }

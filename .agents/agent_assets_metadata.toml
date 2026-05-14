@@ -1,0 +1,44 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "-exjE_k5kqrGAGW_FeDag"
+uri = "file://artifacts/pushup-pro/public/avatars/rival-machine.png"
+type = "image"
+title = "rival machine athlete portrait"
+
+[[generated]]
+id = "MGCg8qUBiDLWtAzlZWVMF"
+uri = "file://artifacts/pushup-pro/public/avatars/rival-grinder.png"
+type = "image"
+title = "rival grinder athlete portrait"
+
+[[generated]]
+id = "CkC7qSO-3vXTZCkqSN60X"
+uri = "file://artifacts/pushup-pro/public/avatars/rival-competitor.png"
+type = "image"
+title = "rival competitor confident portrait"
+
+[[generated]]
+id = "X3k8Wb-n751Umiss5ye4G"
+uri = "file://artifacts/pushup-pro/public/avatars/rival-comeback-kid.png"
+type = "image"
+title = "rival comeback kid resilient portrait"
+
+[[generated]]
+id = "qVjElzsu9K85Ci5buKrCO"
+uri = "file://artifacts/pushup-pro/public/avatars/rival-underdog.png"
+type = "image"
+title = "rival underdog humble fierce portrait"
+
+[[generated]]
+id = "c0jKrgOPC3Y7WB0fIfIDs"
+uri = "file://artifacts/pushup-pro/public/avatars/rival-consistent.png"
+type = "image"
+title = "rival consistent disciplined portrait"
+
+[[generated]]
+id = "7h085pUJnLBFTNDdZwfBi"
+uri = "file://artifacts/pushup-pro/public/avatars/rival-weekend-warrior.png"
+type = "image"
+title = "rival weekend warrior relaxed portrait"

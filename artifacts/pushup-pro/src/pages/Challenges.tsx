@@ -402,6 +402,8 @@ export default function Challenges() {
                 {rivals.map(rival => {
                   const ahead = rival.weeklyReps > myWeekly;
                   const diff = Math.abs(rival.weeklyReps - myWeekly);
+                  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+                  const avatarSrc = `${base}/avatars/rival-${rival.personality.replace("_", "-")}.png`;
                   return (
                     <div
                       key={rival.id}
@@ -409,7 +411,17 @@ export default function Challenges() {
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="text-3xl leading-none">{rival.avatarEmoji}</div>
+                          <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 border border-border bg-muted flex items-center justify-center">
+                            <img
+                              src={avatarSrc}
+                              alt={rival.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).style.display = "none";
+                                e.currentTarget.parentElement!.textContent = rival.avatarEmoji;
+                              }}
+                            />
+                          </div>
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-base">{rival.name}</span>
@@ -634,7 +646,7 @@ export default function Challenges() {
                             {offerText ? (
                               <span className="text-primary font-bold">{offerText}</span>
                             ) : (
-                              <span className="text-muted-foreground">Normally ${studio.normalPrice}/class</span>
+                              <span className="text-muted-foreground">Normally ${studio.normalPrice} value</span>
                             )}
                           </div>
                           {!locked && (
