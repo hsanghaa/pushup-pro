@@ -3,7 +3,7 @@ import { Switch, Route, useLocation, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { ClerkProvider, SignIn, SignUp, useClerk } from "@clerk/react";
+import { ClerkProvider, SignIn, SignUp, useClerk, useAuth, RedirectToSignIn } from "@clerk/react";
 import { shadcn } from "@clerk/themes";
 
 import Home from "@/pages/Home";
@@ -126,12 +126,24 @@ function ClerkQueryClientCacheInvalidator() {
   return null;
 }
 
-function Router() {
+function ProtectedRoutes() {
+  const { isLoaded, isSignedIn } = useAuth();
+
+  if (!isLoaded) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!isSignedIn) {
+    return <RedirectToSignIn />;
+  }
+
   return (
     <Switch>
       <Route path="/" component={Home} />
-      <Route path="/sign-in/*?" component={SignInPage} />
-      <Route path="/sign-up/*?" component={SignUpPage} />
       <Route path="/onboarding" component={Onboarding} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/workout" component={Workout} />
@@ -142,6 +154,16 @@ function Router() {
       <Route path="/profile" component={Profile} />
       <Route path="/records" component={Records} />
       <Route path="/challenge" component={ChallengeInvite} />
+    </Switch>
+  );
+}
+
+function Router() {
+  return (
+    <Switch>
+      <Route path="/sign-in/*?" component={SignInPage} />
+      <Route path="/sign-up/*?" component={SignUpPage} />
+      <Route component={ProtectedRoutes} />
     </Switch>
   );
 }
