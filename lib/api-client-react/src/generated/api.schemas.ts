@@ -69,6 +69,11 @@ export interface UserInput {
   fitnessLevel: UserInputFitnessLevel;
   /** @minimum 0 */
   currentMaxPushups: number;
+  /**
+   * @minimum 1
+   * @maximum 7
+   */
+  weeklyAvailabilityDays?: number;
   mainGoal: UserInputMainGoal;
   reminderPreference?: string;
   wantsAiGoals?: boolean;
@@ -117,6 +122,10 @@ export interface UserStats {
   streakBonus: number;
   personalBestBonus: number;
   challengeBonus: number;
+  verifiedRepsTotal: number;
+  unverifiedRepsTotal: number;
+  weeklyVerifiedReps: number;
+  weeklyUnverifiedReps: number;
 }
 
 export interface Workout {
@@ -124,6 +133,10 @@ export interface Workout {
   userId: number;
   date: string;
   totalReps: number;
+  verifiedReps: number;
+  unverifiedReps: number;
+  /** @nullable */
+  cameraAngle?: string | null;
   sets: number;
   averageReps: number;
   variation: string;
@@ -133,10 +146,25 @@ export interface Workout {
   createdAt: string;
 }
 
+export type WorkoutInputCameraAngle =
+  (typeof WorkoutInputCameraAngle)[keyof typeof WorkoutInputCameraAngle];
+
+export const WorkoutInputCameraAngle = {
+  front: "front",
+  side: "side",
+  diagonal: "diagonal",
+  unsupported: "unsupported",
+} as const;
+
 export interface WorkoutInput {
   userId: number;
   /** @minimum 0 */
   totalReps: number;
+  /** @minimum 0 */
+  verifiedReps?: number;
+  /** @minimum 0 */
+  unverifiedReps?: number;
+  cameraAngle?: WorkoutInputCameraAngle;
   /** @minimum 1 */
   sets: number;
   variation: string;

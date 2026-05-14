@@ -91,6 +91,23 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Verified vs Unverified rep breakdown — shown when user has camera data */}
+        {(stats && (stats.weeklyVerifiedReps > 0 || stats.weeklyUnverifiedReps > 0)) && (
+          <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">This Week — Rep Quality</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-center">
+                <div className="text-2xl font-display font-bold text-primary">{stats.weeklyVerifiedReps}</div>
+                <div className="text-[10px] font-mono text-muted-foreground mt-0.5 uppercase tracking-wider">Camera Verified</div>
+              </div>
+              <div className="bg-white/5 border border-border rounded-lg p-3 text-center">
+                <div className="text-2xl font-display font-bold">{stats.weeklyUnverifiedReps}</div>
+                <div className="text-[10px] font-mono text-muted-foreground mt-0.5 uppercase tracking-wider">Manual</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="pt-4">
           <Link href="/workout" className="w-full block">
             <Button size="lg" className="w-full h-16 text-xl font-display uppercase tracking-widest bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_0_20px_rgba(212,255,0,0.15)]">

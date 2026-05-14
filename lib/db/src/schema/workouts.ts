@@ -11,6 +11,9 @@ export const workoutsTable = pgTable("workouts", {
   averageReps: real("average_reps").notNull().default(0),
   variation: text("variation").notNull().default("standard"),
   usedCamera: boolean("used_camera").notNull().default(false),
+  verifiedReps: integer("verified_reps").notNull().default(0),
+  unverifiedReps: integer("unverified_reps").notNull().default(0),
+  cameraAngle: text("camera_angle"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

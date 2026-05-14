@@ -9,6 +9,7 @@ export const usersTable = pgTable("users", {
   currentMaxPushups: integer("current_max_pushups").notNull().default(0),
   mainGoal: text("main_goal").notNull(),
   reminderPreference: text("reminder_preference"),
+  weeklyAvailabilityDays: integer("weekly_availability_days").notNull().default(3),
   wantsAiGoals: boolean("wants_ai_goals").default(true),
   wantsCompetition: boolean("wants_competition").default(true),
   createdAt: timestamp("created_at").defaultNow().notNull(),

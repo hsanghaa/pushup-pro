@@ -11,6 +11,10 @@ export interface Workout {
   userId: number;
   date: Date;
   totalReps: number;
+  verifiedReps: number;
+  unverifiedReps: number;
+  /** @nullable */
+  cameraAngle?: string | null;
   sets: number;
   averageReps: number;
   variation: string;

@@ -21,10 +21,17 @@ export const HealthCheckResponse = zod.object({
 
 export const createUserBodyCurrentMaxPushupsMin = 0;
 
+export const createUserBodyWeeklyAvailabilityDaysMax = 7;
+
 export const CreateUserBody = zod.object({
   name: zod.string().min(1),
   fitnessLevel: zod.enum(["beginner", "intermediate", "advanced", "athlete"]),
   currentMaxPushups: zod.number().min(createUserBodyCurrentMaxPushupsMin),
+  weeklyAvailabilityDays: zod
+    .number()
+    .min(1)
+    .max(createUserBodyWeeklyAvailabilityDaysMax)
+    .optional(),
   mainGoal: zod.enum([
     "build_strength",
     "improve_consistency",
@@ -125,6 +132,10 @@ export const GetUserStatsResponse = zod.object({
   streakBonus: zod.number(),
   personalBestBonus: zod.number(),
   challengeBonus: zod.number(),
+  verifiedRepsTotal: zod.number(),
+  unverifiedRepsTotal: zod.number(),
+  weeklyVerifiedReps: zod.number(),
+  weeklyUnverifiedReps: zod.number(),
 });
 
 /**
@@ -132,9 +143,21 @@ export const GetUserStatsResponse = zod.object({
  */
 export const createWorkoutBodyTotalRepsMin = 0;
 
+export const createWorkoutBodyVerifiedRepsMin = 0;
+
+export const createWorkoutBodyUnverifiedRepsMin = 0;
+
 export const CreateWorkoutBody = zod.object({
   userId: zod.number(),
   totalReps: zod.number().min(createWorkoutBodyTotalRepsMin),
+  verifiedReps: zod.number().min(createWorkoutBodyVerifiedRepsMin).optional(),
+  unverifiedReps: zod
+    .number()
+    .min(createWorkoutBodyUnverifiedRepsMin)
+    .optional(),
+  cameraAngle: zod
+    .enum(["front", "side", "diagonal", "unsupported"])
+    .optional(),
   sets: zod.number().min(1),
   variation: zod.string(),
   usedCamera: zod.boolean(),
@@ -154,6 +177,9 @@ export const GetUserWorkoutsResponseItem = zod.object({
   userId: zod.number(),
   date: zod.coerce.date(),
   totalReps: zod.number(),
+  verifiedReps: zod.number(),
+  unverifiedReps: zod.number(),
+  cameraAngle: zod.string().nullish(),
   sets: zod.number(),
   averageReps: zod.number(),
   variation: zod.string(),
@@ -175,6 +201,9 @@ export const GetWorkoutResponse = zod.object({
   userId: zod.number(),
   date: zod.coerce.date(),
   totalReps: zod.number(),
+  verifiedReps: zod.number(),
+  unverifiedReps: zod.number(),
+  cameraAngle: zod.string().nullish(),
   sets: zod.number(),
   averageReps: zod.number(),
   variation: zod.string(),
@@ -202,6 +231,9 @@ export const UpdateWorkoutResponse = zod.object({
   userId: zod.number(),
   date: zod.coerce.date(),
   totalReps: zod.number(),
+  verifiedReps: zod.number(),
+  unverifiedReps: zod.number(),
+  cameraAngle: zod.string().nullish(),
   sets: zod.number(),
   averageReps: zod.number(),
   variation: zod.string(),

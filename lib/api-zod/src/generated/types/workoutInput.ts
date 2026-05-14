@@ -5,11 +5,17 @@
  * PushUp Pro API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { WorkoutInputCameraAngle } from "./workoutInputCameraAngle";
 
 export interface WorkoutInput {
   userId: number;
   /** @minimum 0 */
   totalReps: number;
+  /** @minimum 0 */
+  verifiedReps?: number;
+  /** @minimum 0 */
+  unverifiedReps?: number;
+  cameraAngle?: WorkoutInputCameraAngle;
   /** @minimum 1 */
   sets: number;
   variation: string;

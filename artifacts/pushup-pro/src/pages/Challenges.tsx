@@ -9,6 +9,7 @@ import {
   useGenerateRival,
   useDeleteRival,
   useGetUserStats,
+  useGetUser,
   getGetCurrentChallengeQueryKey,
   getGetChallengeLeaderboardQueryKey,
   getGetUserRivalsQueryKey,
@@ -121,6 +122,9 @@ export default function Challenges() {
   const { data: stats } = useGetUserStats(userId!, {
     query: { enabled: !!userId, queryKey: getGetUserStatsQueryKey(userId!) },
   });
+  const { data: userProfile } = useGetUser(userId!, {
+    query: { enabled: !!userId, queryKey: ["users", userId] },
+  });
   const generateRival = useGenerateRival();
   const deleteRival = useDeleteRival();
 
@@ -162,6 +166,18 @@ export default function Challenges() {
   if (!userId) return null;
 
   const myWeekly = stats?.weeklyTotal ?? 0;
+
+  // Personalized weekly target based on fitness level
+  const LEVEL_TARGETS: Record<string, { min: number; max: number }> = {
+    beginner: { min: 40, max: 100 },
+    intermediate: { min: 100, max: 200 },
+    advanced: { min: 200, max: 350 },
+    athlete: { min: 350, max: 500 },
+  };
+  const levelKey = userProfile?.fitnessLevel ?? "beginner";
+  const levelTarget = LEVEL_TARGETS[levelKey] ?? LEVEL_TARGETS.beginner!;
+  // Use midpoint of the range as the personalized target
+  const personalTarget = Math.round((levelTarget.min + levelTarget.max) / 2);
 
   return (
     <AppLayout>
@@ -230,19 +246,26 @@ export default function Challenges() {
                     <Users className="w-4 h-4" />
                     <span>{challenge.participantCount} competing</span>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Zap className="w-4 h-4 text-primary" />
-                    <span>Target: {challenge.target} push-ups</span>
+                </div>
+
+                {/* Personalized target card */}
+                <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-primary">Your Weekly Target</p>
+                    <p className="text-xs font-mono text-muted-foreground mt-0.5">
+                      {levelKey.charAt(0).toUpperCase() + levelKey.slice(1)} · {levelTarget.min}–{levelTarget.max} reps
+                    </p>
                   </div>
+                  <div className="text-2xl font-display font-black text-primary">{personalTarget}</div>
                 </div>
 
                 {userEntry && (
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs font-mono text-muted-foreground">
                       <span>Your progress</span>
-                      <span>{userEntry.weeklyReps} / {challenge.target}</span>
+                      <span>{userEntry.weeklyReps} / {personalTarget}</span>
                     </div>
-                    <Progress value={Math.min(100, Math.round((userEntry.weeklyReps / challenge.target) * 100))} className="h-2" />
+                    <Progress value={Math.min(100, Math.round((userEntry.weeklyReps / personalTarget) * 100))} className="h-2" />
                   </div>
                 )}
 

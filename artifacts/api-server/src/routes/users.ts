@@ -22,6 +22,7 @@ router.post("/users", async (req, res): Promise<void> => {
     name: parsed.data.name,
     fitnessLevel: parsed.data.fitnessLevel,
     currentMaxPushups: parsed.data.currentMaxPushups,
+    weeklyAvailabilityDays: parsed.data.weeklyAvailabilityDays ?? 3,
     mainGoal: parsed.data.mainGoal,
     reminderPreference: parsed.data.reminderPreference ?? null,
     wantsAiGoals: parsed.data.wantsAiGoals ?? true,
@@ -111,6 +112,13 @@ router.get("/users/:userId/stats", async (req, res): Promise<void> => {
     }
   }
 
+  // Verified / unverified rep totals
+  const verifiedRepsTotal = workouts.reduce((sum, w) => sum + (w.verifiedReps ?? 0), 0);
+  const unverifiedRepsTotal = workouts.reduce((sum, w) => sum + (w.unverifiedReps ?? 0), 0);
+  const weeklyWorkouts = workouts.filter(w => w.date >= startOfWeekStr);
+  const weeklyVerifiedReps = weeklyWorkouts.reduce((sum, w) => sum + (w.verifiedReps ?? 0), 0);
+  const weeklyUnverifiedReps = weeklyWorkouts.reduce((sum, w) => sum + (w.unverifiedReps ?? 0), 0);
+
   const streakBonus = currentStreak * 10;
   const personalBestBonus = bestSet > 0 ? 25 : 0;
   const challengeBonus = 0;
@@ -129,6 +137,10 @@ router.get("/users/:userId/stats", async (req, res): Promise<void> => {
     streakBonus,
     personalBestBonus,
     challengeBonus,
+    verifiedRepsTotal,
+    unverifiedRepsTotal,
+    weeklyVerifiedReps,
+    weeklyUnverifiedReps,
   });
 });
 

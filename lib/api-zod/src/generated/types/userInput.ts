@@ -14,6 +14,11 @@ export interface UserInput {
   fitnessLevel: UserInputFitnessLevel;
   /** @minimum 0 */
   currentMaxPushups: number;
+  /**
+   * @minimum 1
+   * @maximum 7
+   */
+  weeklyAvailabilityDays?: number;
   mainGoal: UserInputMainGoal;
   reminderPreference?: string;
   wantsAiGoals?: boolean;

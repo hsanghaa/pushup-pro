@@ -32,11 +32,11 @@ async function ensureCurrentChallenge() {
   if (existing) return existing;
 
   const [challenge] = await db.insert(challengesTable).values({
-    name: "First to 500 Push-Ups This Week",
+    name: "Weekly Push-Up Race",
     target: 500,
     startDate: start,
     endDate: end,
-    description: "Race to 500 push-ups this week. Stay consistent and you'll be hard to beat.",
+    description: "Race to hit your weekly target. Every level has a personalized goal — stay consistent and you'll be hard to beat.",
   }).returning();
 
   return challenge;

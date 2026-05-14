@@ -160,9 +160,18 @@ router.get("/goals/user/:userId/recommendations", async (req, res): Promise<void
   let weeklyGoal: number;
   let message: string;
 
+  // Per-level overtraining caps: max weekly increase allowed
+  const OVERTRAINING_CAP: Record<string, number> = {
+    beginner: 1.10,
+    intermediate: 1.15,
+    advanced: 1.20,
+    athlete: 1.20,
+  };
+  const cap = OVERTRAINING_CAP[level] ?? 1.15;
+
   if (lastWeekTotal > 0) {
-    // Build on last week: +15%, but never below the level baseline
-    weeklyGoal = Math.max(baseWeekly, Math.ceil(lastWeekTotal * 1.15));
+    // Build on last week with level-appropriate cap, never below the level baseline
+    weeklyGoal = Math.max(baseWeekly, Math.ceil(lastWeekTotal * cap));
     dailyGoal = Math.ceil(weeklyGoal / cfg.daysPerWeek);
     const levelLabel = level.charAt(0).toUpperCase() + level.slice(1);
     message = `${levelLabel} mode: You hit ${lastWeekTotal} push-ups last week. Let's reach ${weeklyGoal} this week — about ${dailyGoal} a day. Keep the streak alive.`;

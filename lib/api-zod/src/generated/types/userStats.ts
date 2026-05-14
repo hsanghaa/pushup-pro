@@ -19,4 +19,8 @@ export interface UserStats {
   streakBonus: number;
   personalBestBonus: number;
   challengeBonus: number;
+  verifiedRepsTotal: number;
+  unverifiedRepsTotal: number;
+  weeklyVerifiedReps: number;
+  weeklyUnverifiedReps: number;
 }

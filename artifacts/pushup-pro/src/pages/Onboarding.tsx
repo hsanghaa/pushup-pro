@@ -8,6 +8,8 @@ import { setUserId } from "@/lib/auth";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { UserInputFitnessLevel, UserInputMainGoal } from "@workspace/api-client-react";
 
+const DAYS = [1, 2, 3, 4, 5, 6, 7];
+
 export default function Onboarding() {
   const [, setLocation] = useLocation();
   const [step, setStep] = useReactState(1);
@@ -15,7 +17,8 @@ export default function Onboarding() {
   const [fitnessLevel, setFitnessLevel] = useReactState<UserInputFitnessLevel>("beginner");
   const [maxPushups, setMaxPushups] = useReactState("10");
   const [mainGoal, setMainGoal] = useReactState<UserInputMainGoal>("build_strength");
-  
+  const [weeklyAvailabilityDays, setWeeklyAvailabilityDays] = useReactState(3);
+
   const createUser = useCreateUser();
 
   const handleComplete = () => {
@@ -25,6 +28,7 @@ export default function Onboarding() {
         fitnessLevel,
         currentMaxPushups: parseInt(maxPushups, 10),
         mainGoal,
+        weeklyAvailabilityDays,
       }
     }, {
       onSuccess: (user) => {
@@ -37,8 +41,9 @@ export default function Onboarding() {
   return (
     <AppLayout showNav={false}>
       <div className="flex flex-col items-center justify-center min-h-[100dvh] p-6 text-center">
-        <h1 className="text-3xl font-display font-bold uppercase mb-8">Setup Your Profile</h1>
-        
+        <h1 className="text-3xl font-display font-bold uppercase mb-2">Setup Your Profile</h1>
+        <p className="text-xs font-mono text-muted-foreground uppercase tracking-wider mb-8">Step {step} of 4</p>
+
         {step === 1 && (
           <div className="w-full space-y-4 max-w-sm">
             <div>
@@ -90,8 +95,40 @@ export default function Onboarding() {
                 </SelectContent>
               </Select>
             </div>
+            <Button onClick={() => setStep(4)} className="w-full h-14 text-lg font-display uppercase">Next</Button>
+          </div>
+        )}
+
+        {step === 4 && (
+          <div className="w-full space-y-6 max-w-sm">
+            <div>
+              <label className="text-sm font-bold uppercase tracking-wider mb-1 block text-left">Weekly Availability</label>
+              <p className="text-xs font-mono text-muted-foreground text-left mb-3">How many days per week can you train?</p>
+              <div className="grid grid-cols-7 gap-1.5">
+                {DAYS.map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setWeeklyAvailabilityDays(d)}
+                    className={`h-12 rounded-lg text-sm font-bold border transition-colors ${
+                      weeklyAvailabilityDays === d
+                        ? "bg-primary text-black border-primary"
+                        : "bg-card border-border text-muted-foreground hover:border-primary/50"
+                    }`}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs font-mono text-primary mt-2 text-left">
+                {weeklyAvailabilityDays === 1 ? "1 day — rest is recovery too." :
+                 weeklyAvailabilityDays <= 3 ? `${weeklyAvailabilityDays} days — solid start.` :
+                 weeklyAvailabilityDays <= 5 ? `${weeklyAvailabilityDays} days — great consistency.` :
+                 weeklyAvailabilityDays <= 6 ? `${weeklyAvailabilityDays} days — elite commitment.` :
+                 "Every day — athlete mode."}
+              </p>
+            </div>
             <Button onClick={handleComplete} disabled={createUser.isPending} className="w-full h-14 text-lg font-display uppercase bg-primary text-primary-foreground">
-              {createUser.isPending ? "Setting up..." : "Complete Setup"}
+              {createUser.isPending ? "Setting up..." : "Start Training"}
             </Button>
           </div>
         )}

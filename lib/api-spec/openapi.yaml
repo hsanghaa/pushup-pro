@@ -518,6 +518,10 @@ components:
         currentMaxPushups:
           type: integer
           minimum: 0
+        weeklyAvailabilityDays:
+          type: integer
+          minimum: 1
+          maximum: 7
         mainGoal:
           type: string
           enum: [build_strength, improve_consistency, hit_100_daily, compete_friends, train_like_athlete]
@@ -546,7 +550,7 @@ components:
 
     UserStats:
       type: object
-      required: [userId, totalPushups, todayReps, weeklyTotal, averageRepsPerSet, currentStreak, bestSet, progressScore, weeklyReps, streakBonus, personalBestBonus, challengeBonus]
+      required: [userId, totalPushups, todayReps, weeklyTotal, averageRepsPerSet, currentStreak, bestSet, progressScore, weeklyReps, streakBonus, personalBestBonus, challengeBonus, verifiedRepsTotal, unverifiedRepsTotal, weeklyVerifiedReps, weeklyUnverifiedReps]
       properties:
         userId:
           type: integer
@@ -572,10 +576,18 @@ components:
           type: integer
         challengeBonus:
           type: integer
+        verifiedRepsTotal:
+          type: integer
+        unverifiedRepsTotal:
+          type: integer
+        weeklyVerifiedReps:
+          type: integer
+        weeklyUnverifiedReps:
+          type: integer
 
     Workout:
       type: object
-      required: [id, userId, date, totalReps, sets, averageReps, variation, usedCamera, createdAt]
+      required: [id, userId, date, totalReps, verifiedReps, unverifiedReps, sets, averageReps, variation, usedCamera, createdAt]
       properties:
         id:
           type: integer
@@ -586,6 +598,12 @@ components:
           format: date
         totalReps:
           type: integer
+        verifiedReps:
+          type: integer
+        unverifiedReps:
+          type: integer
+        cameraAngle:
+          type: ["string", "null"]
         sets:
           type: integer
         averageReps:
@@ -609,6 +627,15 @@ components:
         totalReps:
           type: integer
           minimum: 0
+        verifiedReps:
+          type: integer
+          minimum: 0
+        unverifiedReps:
+          type: integer
+          minimum: 0
+        cameraAngle:
+          type: string
+          enum: [front, side, diagonal, unsupported]
         sets:
           type: integer
           minimum: 1

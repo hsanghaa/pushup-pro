@@ -40,4 +40,5 @@ export * from "./variation";
 export * from "./variationLevel";
 export * from "./workout";
 export * from "./workoutInput";
+export * from "./workoutInputCameraAngle";
 export * from "./workoutUpdate";

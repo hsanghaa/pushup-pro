@@ -150,6 +150,29 @@ function scorePoseRep(depthDelta: number, durationMs: number, elbowAngle: number
   return { amplitude: Math.round(depthDelta * 1000), durationMs, score, grade };
 }
 
+// Classify camera viewing angle from MediaPipe shoulder landmark geometry
+function classifyAngle(
+  lm: Array<{ x: number; y: number; visibility?: number }>
+): "front" | "side" | "diagonal" | "unsupported" {
+  const lS = lm[11]!, rS = lm[12]!;
+  const lVis = lS.visibility ?? 0;
+  const rVis = rS.visibility ?? 0;
+  if (lVis < 0.3 && rVis < 0.3) return "unsupported";
+  const xGap = Math.abs(lS.x - rS.x);
+  const visAsymmetry = Math.abs(lVis - rVis);
+  if (lVis > 0.5 && rVis > 0.5 && xGap > 0.2) return "front";
+  if (visAsymmetry > 0.3 && Math.max(lVis, rVis) > 0.65) return "side";
+  if (lVis > 0.5 && rVis > 0.5) return "diagonal";
+  return "unsupported";
+}
+
+const ANGLE_FALLBACK_MESSAGES: Record<string, string> = {
+  no_person: "Step into frame — I can't see you yet.",
+  partial: "Move the camera back — I need to see your shoulders.",
+  unsupported: "Try a front or side view for accurate rep counting.",
+  diagonal: "Adjust camera — front or side view works best.",
+};
+
 export default function Workout() {
   const userId = useRequireAuth();
   const [, setLocation] = useLocation();
@@ -171,6 +194,10 @@ export default function Workout() {
   const [cameraStatus, setCameraStatus] = useState<"checking" | "ready" | "error">("checking");
   const [poseStatus, setPoseStatus] = useState<"loading" | "ready" | "error">("loading");
   const [coachMsg, setCoachMsg] = useState(COACH_MESSAGES["—"][0]);
+  const [cameraAngle, setCameraAngle] = useState<"front" | "side" | "diagonal" | "unsupported" | null>(null);
+  const [camFeedback, setCamFeedback] = useState<string | null>(null);
+  const [warmUpDismissed, setWarmUpDismissed] = useState(false);
+  const [frozenCameraCount, setFrozenCameraCount] = useState(0);
 
   // Form quality state (drives UI)
   const [formState, setFormState] = useState<FormState>({
@@ -221,6 +248,8 @@ export default function Workout() {
   // For the live depth bar: current deviation from neutral
   const neutralLumRef = useRef<number | null>(null);
   const lumWindowRef = useRef<number[]>([]);  // rolling 10-frame window
+  const noPoseFramesRef = useRef(0);
+  const cameraOnlyCountRef = useRef(0); // camera-detected reps only (excludes manual adds)
 
   const { data: variations } = useGetVariations();
 
@@ -399,6 +428,7 @@ export default function Workout() {
 
           setReps((r) => r + 1);
           repsRef.current += 1;
+          cameraOnlyCountRef.current += 1;
 
           setFormState((prev) => ({
             ...prev,
@@ -423,9 +453,14 @@ export default function Workout() {
     const result = landmarker.detectForVideo(video, performance.now());
 
     if (result.landmarks.length === 0) {
+      noPoseFramesRef.current++;
+      if (noPoseFramesRef.current > 45 && phaseRef.current === "active") {
+        setCamFeedback(ANGLE_FALLBACK_MESSAGES.no_person);
+      }
       setFormState((prev) => ({ ...prev, depthPct: 0 }));
       return;
     }
+    noPoseFramesRef.current = 0;
 
     const lm = result.landmarks[0]!;
     // Landmarks: 0=Nose 11=LShouldr 12=RShouldr 13=LElbow 14=RElbow 15=LWrist 16=RWrist
@@ -434,8 +469,24 @@ export default function Workout() {
     const lElbow = lm[13]!, rElbow = lm[14]!;
     const lWrist = lm[15]!, rWrist = lm[16]!;
 
+    // Classify camera angle and update UI feedback
+    const angleLabel = classifyAngle(lm);
+    setCameraAngle(angleLabel);
+    if (phaseRef.current === "active") {
+      if (angleLabel === "unsupported") {
+        setCamFeedback(ANGLE_FALLBACK_MESSAGES.unsupported);
+      } else if (angleLabel === "diagonal") {
+        setCamFeedback(ANGLE_FALLBACK_MESSAGES.diagonal);
+      } else {
+        setCamFeedback(null);
+      }
+    }
+
     // Need nose to be detected — it's the most reliable cross-orientation signal
-    if ((nose.visibility ?? 0) < 0.3) return;
+    if ((nose.visibility ?? 0) < 0.3) {
+      if (phaseRef.current === "active") setCamFeedback(ANGLE_FALLBACK_MESSAGES.partial);
+      return;
+    }
 
     // Nose Y increases as person goes toward floor; works for both side & front views
     const trackY = nose.y;
@@ -505,6 +556,7 @@ export default function Workout() {
 
         setReps((r) => r + 1);
         repsRef.current += 1;
+        cameraOnlyCountRef.current += 1;
 
         setFormState((prev) => ({
           ...prev,
@@ -565,6 +617,9 @@ export default function Workout() {
     shoulderBaselineRef.current = null;
     shoulderPeakRef.current = 0;
     elbowAngleBottomRef.current = 90;
+    noPoseFramesRef.current = 0;
+    cameraOnlyCountRef.current = 0;
+    setCamFeedback(null);
     setFormState({ score: 0, grade: "—", lastRepGrade: "—", depthPct: 0 });
 
     if (poseReadyRef.current) {
@@ -594,14 +649,27 @@ export default function Workout() {
     clearAllIntervals();
     window.speechSynthesis?.cancel();
     setManualReps(repsRef.current.toString());
+    setFrozenCameraCount(cameraOnlyCountRef.current);
     setPhase("summary");
   };
 
   const saveWorkout = () => {
     const finalReps = parseInt(manualReps, 10);
     if (!userId || isNaN(finalReps)) return;
+    const usedCam = cameraStatus === "ready";
+    const verifiedReps = usedCam ? Math.min(cameraOnlyCountRef.current, finalReps) : 0;
+    const unverifiedReps = Math.max(0, finalReps - verifiedReps);
     createWorkout.mutate(
-      { data: { userId, totalReps: finalReps, sets, variation, usedCamera: cameraStatus === "ready" } },
+      { data: {
+        userId,
+        totalReps: finalReps,
+        verifiedReps,
+        unverifiedReps,
+        cameraAngle: (usedCam && cameraAngle) ? cameraAngle : undefined,
+        sets,
+        variation,
+        usedCamera: usedCam,
+      } },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: getGetUserStatsQueryKey(userId) });
@@ -703,6 +771,23 @@ export default function Workout() {
               </div>
             )}
 
+            {/* Warm-up prompt */}
+            {!warmUpDismissed && (
+              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-3 flex items-start gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold uppercase tracking-wider text-yellow-300 mb-1">Warm up first</p>
+                  <p className="text-xs font-mono text-yellow-200/80 leading-relaxed">Warm up your shoulders, wrists, chest, and core before starting.</p>
+                </div>
+                <button
+                  onClick={() => setWarmUpDismissed(true)}
+                  className="text-yellow-300/50 hover:text-yellow-300 text-base leading-none shrink-0 ml-1"
+                  aria-label="Dismiss warm-up reminder"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             <div className="space-y-3 bg-black/60 backdrop-blur-sm border border-white/10 rounded-xl p-4">
               <div>
                 <label className="text-xs font-bold uppercase tracking-wider text-white/50 block mb-1">Variation</label>
@@ -774,6 +859,29 @@ export default function Workout() {
                 </div>
               )}
             </div>
+
+            {/* Camera angle indicator + fallback feedback */}
+            {cameraStatus === "ready" && (cameraAngle || camFeedback) && (
+              <div className="px-4 flex items-center gap-2 mt-1 flex-wrap">
+                {cameraAngle && cameraAngle !== "unsupported" && !camFeedback && (
+                  <span className={`text-[10px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                    cameraAngle === "front" || cameraAngle === "side"
+                      ? "text-primary border-primary/30 bg-primary/10"
+                      : "text-yellow-300 border-yellow-500/30 bg-yellow-500/10"
+                  }`}>
+                    {cameraAngle === "front" ? "Front view" : cameraAngle === "side" ? "Side view" : "Diagonal"}
+                  </span>
+                )}
+                {cameraAngle === "unsupported" && !camFeedback && (
+                  <span className="text-[10px] font-mono font-bold text-red-400 border border-red-500/30 bg-red-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    Unsupported angle
+                  </span>
+                )}
+                {camFeedback && (
+                  <span className="text-[10px] font-mono text-orange-300 leading-tight">{camFeedback}</span>
+                )}
+              </div>
+            )}
 
             {/* ── MAIN REP AREA + DEPTH BAR ── */}
             <div className="flex-1 flex items-center justify-center gap-4 px-4">
@@ -907,6 +1015,27 @@ export default function Workout() {
               />
               <p className="text-xs text-muted-foreground font-mono">Camera detection may miss reps. Adjust here.</p>
             </div>
+
+            {/* Verified vs Manual rep breakdown */}
+            {cameraStatus === "ready" && (frozenCameraCount > 0 || parseInt(manualReps || "0") > 0) && (
+              <div className="bg-card border border-border rounded-xl p-4 space-y-2">
+                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Rep Source</p>
+                <div className="grid grid-cols-2 gap-3 text-center">
+                  <div className="bg-primary/5 border border-primary/20 rounded-lg p-3">
+                    <div className="text-2xl font-display font-bold text-primary">
+                      {Math.min(frozenCameraCount, parseInt(manualReps || "0"))}
+                    </div>
+                    <div className="text-[10px] font-mono text-muted-foreground mt-0.5 uppercase tracking-wider">Camera Verified</div>
+                  </div>
+                  <div className="bg-white/5 border border-border rounded-lg p-3">
+                    <div className="text-2xl font-display font-bold">
+                      {Math.max(0, parseInt(manualReps || "0") - frozenCameraCount)}
+                    </div>
+                    <div className="text-[10px] font-mono text-muted-foreground mt-0.5 uppercase tracking-wider">Manual</div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {saved ? (
               <div className="flex items-center justify-center gap-2 text-primary py-4">
