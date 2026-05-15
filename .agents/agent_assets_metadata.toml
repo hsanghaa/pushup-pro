@@ -1,5 +1,4 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "-exjE_k5kqrGAGW_FeDag"
@@ -42,3 +41,9 @@ id = "7h085pUJnLBFTNDdZwfBi"
 uri = "file://artifacts/pushup-pro/public/avatars/rival-weekend-warrior.png"
 type = "image"
 title = "rival weekend warrior relaxed portrait"
+
+[[outputs]]
+id = "r65V5fJh59lzA_BBO2KEf"
+uri = "file://README.md"
+type = "text"
+title = "PushUp Pro — GitHub README"
